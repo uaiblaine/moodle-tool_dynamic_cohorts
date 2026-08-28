@@ -19,6 +19,7 @@ namespace tool_dynamic_cohorts\external;
 use externallib_advanced_testcase;
 use tool_dynamic_cohorts\rule;
 use tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition\user_profile;
+use PHPUnit\Framework\Attributes\CoversClass;
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -31,9 +32,8 @@ require_once($CFG->dirroot . '/webservice/tests/helpers.php');
  * @package    tool_dynamic_cohorts
  * @copyright  2024 Catalyst IT
  * @license    https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- *
- * @covers     \tool_dynamic_cohorts\external\matching_users
  */
+#[CoversClass(\tool_dynamic_cohorts\external\matching_users::class)]
 final class matching_users_test extends externallib_advanced_testcase {
     /**
      * Test exception if rule is not exist.

@@ -18,6 +18,7 @@ namespace tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition;
 
 use tool_dynamic_cohorts\condition_base;
 use tool_dynamic_cohorts\rule;
+use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
  * Unit tests for course_completed condition class.
@@ -25,9 +26,8 @@ use tool_dynamic_cohorts\rule;
  * @package     tool_dynamic_cohorts
  * @copyright   2024 Catalyst IT
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- *
- * @covers     \tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition\course_completed
  */
+#[CoversClass(\tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition\course_completed::class)]
 final class course_completed_test extends \advanced_testcase {
     /**
      * Get condition instance for testing.
@@ -254,6 +254,71 @@ final class course_completed_test extends \advanced_testcase {
         $actual = $DB->get_records_sql($sql, $result->get_params());
         $this->assertCount(1, $actual);
         $this->assertSame($user1->id, reset($actual)->id);
+    }
+
+    /**
+     * The join must not filter users on its own, so that a rule using the OR operator
+     * still matches on its other conditions.
+     *
+     * This is a regression test. The join used to be an INNER JOIN, and
+     * condition_manager::build_sql_data() concatenates every condition's join
+     * unconditionally while combining only the WHERE fragments with the rule's operator —
+     * so the join filtered the whole result set regardless of the operator, and a user
+     * matching the second condition was dropped for having no {course_completions} row.
+     *
+     * Mutation check: put the INNER JOIN back and this goes red on the OR assertion while
+     * the AND assertion stays green, which is exactly the asymmetry the bug had.
+     *
+     * @return void
+     */
+    public function test_condition_is_neutral_in_a_join_under_the_or_operator(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course(['enablecompletion' => 1]);
+
+        // Neither user has ever completed anything, so neither has a completion row.
+        $matcher = $this->getDataGenerator()->create_user(['username' => 'matcher']);
+        $this->getDataGenerator()->create_user(['username' => 'other']);
+
+        $completed = $this->get_condition([
+            'courseid' => $course->id,
+            'operator' => course_completed::OPERATOR_ANY,
+        ]);
+
+        // A second condition the first user matches and the second does not.
+        $profile = condition_base::get_instance(0, (object)[
+            'classname' => '\tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition\user_profile',
+        ]);
+        $profile->set_config_data([
+            'profilefield' => 'username',
+            'username_operator' => condition_base::TEXT_IS_EQUAL_TO,
+            'username_value' => 'matcher',
+        ]);
+
+        $completedsql = $completed->get_sql();
+        $profilesql = $profile->get_sql();
+
+        $join = $completedsql->get_join() . ' ' . $profilesql->get_join();
+        $params = $completedsql->get_params() + $profilesql->get_params();
+
+        // OR: the username branch alone must be enough.
+        $where = '(' . $completedsql->get_where() . ') OR (' . $profilesql->get_where() . ')';
+        $actual = $DB->get_records_sql(
+            "SELECT DISTINCT u.id FROM {user} u {$join} WHERE {$where}",
+            $params
+        );
+        $this->assertArrayHasKey($matcher->id, $actual);
+
+        /* Control: the same two conditions under AND must still exclude the user, so the
+           test cannot pass by the join having become a no-op in both directions. */
+        $where = '(' . $completedsql->get_where() . ') AND (' . $profilesql->get_where() . ')';
+        $actual = $DB->get_records_sql(
+            "SELECT DISTINCT u.id FROM {user} u {$join} WHERE {$where}",
+            $params
+        );
+        $this->assertArrayNotHasKey($matcher->id, $actual);
     }
 
     /**

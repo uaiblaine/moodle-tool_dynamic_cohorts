@@ -18,6 +18,7 @@ namespace tool_dynamic_cohorts;
 
 use advanced_testcase;
 use tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition\user_profile;
+use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
  * Unit tests for observer class.
@@ -25,9 +26,8 @@ use tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition\user_profile;
  * @package     tool_dynamic_cohorts
  * @copyright   2024 Catalyst IT
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- *
- * @covers     \tool_dynamic_cohorts\observer
  */
+#[CoversClass(\tool_dynamic_cohorts\observer::class)]
 final class observer_test extends advanced_testcase {
     /**
      * Cohort for testing
@@ -49,6 +49,14 @@ final class observer_test extends advanced_testcase {
      */
     public function test_user_creation_triggers_rule_processing(): void {
         global $DB;
+
+        /* The observer is registered non-internal (db/events.php), so core buffers the
+           event until the surrounding transaction commits. advanced_testcase wraps every
+           test in one, which would defer the callback past the end of the test and leave
+           this assertion measuring nothing. preventResetByRollback() commits that
+           transaction, which is the supported way to observe post-commit behaviour in a
+           test — core's own tool_log suite does the same for the same reason. */
+        $this->preventResetByRollback();
 
         $rule = new rule(0, (object)['name' => 'Test rule 1', 'enabled' => 1, 'cohortid' => $this->cohort->id, 'realtime' => 1]);
         $rule->save();
@@ -82,6 +90,14 @@ final class observer_test extends advanced_testcase {
      */
     public function test_user_updating_triggers_rule_processing(): void {
         global $DB;
+
+        /* The observer is registered non-internal (db/events.php), so core buffers the
+           event until the surrounding transaction commits. advanced_testcase wraps every
+           test in one, which would defer the callback past the end of the test and leave
+           this assertion measuring nothing. preventResetByRollback() commits that
+           transaction, which is the supported way to observe post-commit behaviour in a
+           test — core's own tool_log suite does the same for the same reason. */
+        $this->preventResetByRollback();
 
         $user1 = $this->getDataGenerator()->create_user(['username' => 'user1']);
         $user2 = $this->getDataGenerator()->create_user(['username' => 'user2']);

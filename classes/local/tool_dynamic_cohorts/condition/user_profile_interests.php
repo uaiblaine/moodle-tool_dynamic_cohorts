@@ -118,7 +118,14 @@ class user_profile_interests extends condition_base {
         $tags = $this->get_tags();
         $badges = [];
         foreach ($data['tags'] as $id) {
-            $badges[] = html_writer::tag('span', $tags[$id], ['class' => 'badge badge-secondary']);
+            /* get_tags() only lists tags that still have at least one user instance, so a
+               tag stops appearing there as soon as the last user carrying it is untagged —
+               while the id stays in this condition's stored config. Reading $tags[$id]
+               straight was an undefined array key then: a PHP warning (which PHPUnit fails
+               the build over, --fail-on-warning) and a blank badge on screen. The sibling
+               cohort_membership condition already falls back to the raw id here. */
+            $label = $tags[$id] ?? get_string('missingtag', 'tool_dynamic_cohorts', $id);
+            $badges[] = html_writer::tag('span', $label, ['class' => 'badge bg-secondary text-dark']);
         }
 
         return (int) $data['tags_operator'] === self::TEXT_CONTAINS
@@ -135,7 +142,8 @@ class user_profile_interests extends condition_base {
         global $DB;
 
         $data = $this->get_config_data();
-        $inner = condition_sql::generate_param_alias();
+        // A TABLE alias: $inner names the derived table in the join, not a bound parameter.
+        $inner = condition_sql::generate_table_alias();
         [$insql, $params] = $DB->get_in_or_equal($data['tags'], SQL_PARAMS_NAMED, condition_sql::generate_param_alias());
 
         $join = "LEFT JOIN (SELECT ti.id, ti.itemid
@@ -195,6 +203,19 @@ class user_profile_interests extends condition_base {
                           WHERE ti.component = :component AND ti.itemtype = :itemtype";
 
         $records = $DB->get_records_sql($sql, $params);
-        return array_combine(array_column($records, 'id'), array_column($records, 'rawname'));
+
+        /* Escape once, in the getter, because BOTH consumers are raw sinks:
+           config_form_add() puts these into an autocomplete, whose option labels core
+           renders through a triple stash in element-select.mustache, and
+           get_config_description() puts them through html_writer::tag(), which does not
+           escape its contents (lib/classes/output/html_writer.php:44-46), into the
+           {{{description}}} triple stash. Tag rawnames are typed by ordinary users. What
+           keeps this from being live XSS today is core's PARAM_TAG cleaner stripping
+           [<>`] on write — a defence that lives entirely outside this plugin — and "&"
+           and quotes survive it and reach the page as raw markup either way. */
+        return array_combine(
+            array_column($records, 'id'),
+            array_map('s', array_column($records, 'rawname'))
+        );
     }
 }

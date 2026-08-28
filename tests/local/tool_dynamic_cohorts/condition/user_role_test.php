@@ -19,6 +19,7 @@ namespace tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition;
 use tool_dynamic_cohorts\condition_base;
 use context_system;
 use context_coursecat;
+use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
  * Unit tests for user_role condition class.
@@ -26,9 +27,8 @@ use context_coursecat;
  * @package     tool_dynamic_cohorts
  * @copyright   2024 Catalyst IT
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- *
- * @covers     \tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition\user_role
  */
+#[CoversClass(\tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition\user_role::class)]
 final class user_role_test extends \advanced_testcase {
     /**
      * Get condition instance for testing.
@@ -779,7 +779,15 @@ final class user_role_test extends \advanced_testcase {
         $sql = "SELECT u.id FROM {user} u {$result->get_join()} WHERE {$result->get_where()}";
         $actual = $DB->get_records_sql($sql, $result->get_params());
 
-        $this->assertCount(4, $actual);
+        /* Five, not four: "include children" is additive now, so the set is
+           ancestors + self + descendants rather than self + descendants alone. users[0]
+           holds the role at Root Category, the parent of Category A, and a role assigned
+           on a parent category applies in the child — which is why the includechildren=0
+           branch above already counts them. Ticking a box that reads as "more" used to
+           produce strictly fewer users, and process_rule() then deleted the difference
+           from the cohort. */
+        $this->assertCount(5, $actual);
+        $this->assertArrayHasKey($users[0]->id, $actual);
         $this->assertArrayHasKey($users[1]->id, $actual);
         $this->assertArrayHasKey($users[2]->id, $actual);
         $this->assertArrayHasKey($users[4]->id, $actual);
@@ -796,7 +804,10 @@ final class user_role_test extends \advanced_testcase {
         $sql = "SELECT u.id FROM {user} u {$result->get_join()} WHERE {$result->get_where()}";
         $actual = $DB->get_records_sql($sql, $result->get_params());
 
-        $this->assertCount(2, $actual);
+        // Same reason: Subcategory A1 inherits the roles held at Category A and at Root.
+        $this->assertCount(4, $actual);
+        $this->assertArrayHasKey($users[0]->id, $actual);
+        $this->assertArrayHasKey($users[1]->id, $actual);
         $this->assertArrayHasKey($users[2]->id, $actual);
         $this->assertArrayHasKey($users[5]->id, $actual);
 

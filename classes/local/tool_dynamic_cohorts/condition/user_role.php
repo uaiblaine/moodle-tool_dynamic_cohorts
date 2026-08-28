@@ -216,7 +216,16 @@ class user_role extends condition_base {
 
             case CONTEXT_COURSECAT:
                 $children = !empty($this->get_includechildren_value()) ? get_string('includechildren', 'tool_dynamic_cohorts') : '';
-                $categoryname = core_course_category::get($this->get_categoryid_value())->get_formatted_name();
+
+                /* Read the name from the table rather than through core_course_category::get(),
+                   which is capability-aware and throws 'cannotviewcategory' for a category the
+                   current user cannot see. This is a description string, not an access decision —
+                   the access decision is the manage capability on the page that renders it — and
+                   the CONTEXT_COURSE branch below already resolves its name with a plain DB read.
+                   The not-found case never reaches here: get_broken_description() handles a deleted
+                   category, and a broken condition never has get_config_description() called. */
+                $categoryname = $DB->get_field('course_categories', 'name', ['id' => $this->get_categoryid_value()]);
+                $categoryname = format_string($categoryname, true, ['context' => \context_system::instance()]);
 
                 return get_string('condition:user_role_description_category', 'tool_dynamic_cohorts', (object) [
                     'role' => $rolename,
@@ -228,7 +237,7 @@ class user_role extends condition_base {
 
             case CONTEXT_COURSE:
                 $coursename = $DB->get_field('course', 'fullname', ['id' => $this->get_courseid_value()]);
-                $coursename = format_string($coursename, true, ['context' => \context_system::instance(), 'escape' => false]);
+                $coursename = format_string($coursename, true, ['context' => \context_system::instance()]);
 
                 return get_string('condition:user_role_description_course', 'tool_dynamic_cohorts', (object) [
                     'role' => $rolename,
@@ -305,11 +314,19 @@ class user_role extends condition_base {
                     $context = context_coursecat::instance($this->get_categoryid_value());
 
                     if ($this->get_includechildren_value()) {
-                        $contextids = [$context->id];
-                        $sql = "SELECT ctx.id
-                                  FROM {context} ctx
-                                 WHERE ctx.path LIKE :pathpattern";
-                        $descendants = $DB->get_records_sql($sql, ['pathpattern' => $context->path . '/%']);
+                        /* Seed with the ancestors, exactly as the unchecked branch below
+                           and the CONTEXT_COURSE branch do, then ADD the descendants.
+                           Seeding with [$context->id] alone made "include children" a
+                           strictly NARROWER match than leaving it off: a user holding the
+                           role by a system-level assignment matched while the box was
+                           clear and stopped matching the moment it was ticked. Since
+                           process_rule() deletes members who no longer match, ticking a
+                           box that reads as "more" silently removed them from the cohort. */
+                        $contextids = $context->get_parent_context_ids(true);
+                        $descendantsql = "SELECT ctx.id
+                                            FROM {context} ctx
+                                           WHERE ctx.path LIKE :pathpattern";
+                        $descendants = $DB->get_records_sql($descendantsql, ['pathpattern' => $context->path . '/%']);
                         $contextids = array_merge($contextids, array_keys($descendants));
 
                         [$contextsql, $cparams] = $DB->get_in_or_equal(

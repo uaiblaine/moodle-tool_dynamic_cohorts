@@ -1,12 +1,38 @@
-# .github/workflows/ci.yml
 name: ci
 
-on: [push, pull_request]
+# workflow_dispatch is the manual escape hatch: without it, a push whose commits
+# carry a skip-ci marker leaves code unvalidated with no way to launch a run short
+# of pushing another commit.
+#
+# This replaced the Catalyst reusable workflow the fork inherited. That workflow
+# gates every downstream job behind a `pre_job` eligibility step whose condition is
+# `event == pull_request || (event == push && github.ref_protected)`. No branch on
+# an ordinary fork is protected, so a push ran NOTHING and still reported success —
+# a green tick on this repo was evidence of nothing at all.
+#
+# CI is not the only gate: the plugin is mounted on the local m501/m502 stacks
+# (moodle-dev/plugins.conf), so run `mdl ci moodle-tool_dynamic_cohorts --matrix`
+# before pushing.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
 
 jobs:
-  ci:
-    uses: catalyst/catalyst-moodle-workflows/.github/workflows/ci.yml@main
-    secrets:
-      moodle_org_token: ${{ secrets.MOODLE_ORG_TOKEN }}
+  # One reusable-workflow call per supported Moodle branch (version.php
+  # $plugin->supported) — update these when the supported range changes, in the
+  # same commit as the version.php change. The highest branch runs the full
+  # PHP x DB matrix; older branches run one DB only. PHPUnit and Behat run on
+  # every runtime leg.
+  ci-502:
+    name: Moodle 5.02
+    uses: moodle-an-hochschulen/moodle-workflows/.github/workflows/moodle-plugin-ci.yml@main
     with:
-      disable_behat: true
+      moodle-core-branch: MOODLE_502_STABLE
+
+  ci-501:
+    name: Moodle 5.01
+    uses: moodle-an-hochschulen/moodle-workflows/.github/workflows/moodle-plugin-ci.yml@main
+    with:
+      moodle-core-branch: MOODLE_501_STABLE
+      one-db-only: true

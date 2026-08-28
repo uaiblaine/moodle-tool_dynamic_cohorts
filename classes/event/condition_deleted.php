@@ -18,20 +18,20 @@ namespace tool_dynamic_cohorts\event;
 
 use core\event\base;
 
- /**
-  * Event triggered when a condition deleted.
-  *
-  * @property-read array $other {
-  *      Extra information about event.
-  *      - string name: name of the condition instance.
-  *      - string ruleid: related rule id.
-  *      - string description: config data description.
-  * }
-  *
-  * @package     tool_dynamic_cohorts
-  * @copyright   2024 Catalyst IT
-  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
-  */
+/**
+ * Event triggered when a condition deleted.
+ *
+ * @property-read array $other {
+ *      Extra information about event.
+ *      - string name: name of the condition instance.
+ *      - string ruleid: related rule id.
+ *      - string description: config data description.
+ * }
+ *
+ * @package     tool_dynamic_cohorts
+ * @copyright   2024 Catalyst IT
+ * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
 class condition_deleted extends base {
     /**
      * Initialise the rule data.
@@ -70,11 +70,11 @@ class condition_deleted extends base {
         parent::validate_data();
 
         if (!isset($this->other['name'])) {
-            throw new \coding_exception('The \'ruleid\' value must be set in other.');
+            throw new \coding_exception('The \'name\' value must be set in other.');
         }
 
         if (!isset($this->other['ruleid'])) {
-            throw new \coding_exception('The \'name\' value must be set in other.');
+            throw new \coding_exception('The \'ruleid\' value must be set in other.');
         }
 
         if (!isset($this->other['description'])) {

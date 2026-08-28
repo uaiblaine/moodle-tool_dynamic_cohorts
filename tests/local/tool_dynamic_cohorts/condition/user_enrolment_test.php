@@ -19,6 +19,7 @@ namespace tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition;
 use context_system;
 use context_coursecat;
 use tool_dynamic_cohorts\condition_base;
+use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
  * Unit tests for user_enrolment condition class.
@@ -26,10 +27,9 @@ use tool_dynamic_cohorts\condition_base;
  * @package     tool_dynamic_cohorts
  * @copyright   2024 Catalyst IT
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- *
- * @covers     \tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition\user_enrolment
  */
-final class user_enroment_test extends \advanced_testcase {
+#[CoversClass(\tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition\user_enrolment::class)]
+final class user_enrolment_test extends \advanced_testcase {
     /**
      * Get condition instance for testing.
      *

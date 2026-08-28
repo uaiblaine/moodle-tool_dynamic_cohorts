@@ -17,6 +17,7 @@
 namespace tool_dynamic_cohorts;
 
 use cache;
+use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
  * Tests for rule class.
@@ -25,9 +26,9 @@ use cache;
  * @copyright   2024 Catalyst IT
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  *
- * @covers     \tool_dynamic_cohorts\rule
 
  */
+#[CoversClass(\tool_dynamic_cohorts\rule::class)]
 final class rule_test extends \advanced_testcase {
     /**
      * Test is_enabled.

@@ -84,7 +84,7 @@ const displayModalForm = (className, defaults) => {
         title: getString('conditionformtitle', 'tool_dynamic_cohorts'),
         body: getModalFormBody(className, '', defaults),
         large: true,
-    }).then(function (modal) {
+    }).then(function(modal) {
 
         modal.getRoot().on(ModalEvents.save, function(e) {
             e.preventDefault();
@@ -101,7 +101,9 @@ const displayModalForm = (className, defaults) => {
         });
 
         modal.show();
-    });
+
+        return modal;
+    }).catch(Notification.exception);
 };
 
 /**
@@ -133,12 +135,12 @@ const submitModalFormAjax = (className, modal) => {
         Ajax.call([{
             methodname: 'tool_dynamic_cohorts_submit_condition_form',
             args: {classname: className, jsonformdata: JSON.stringify(submittedData)},
-            done: function (response) {
+            done: function(response) {
                 updateCondition(response);
                 renderConditions(getConditions());
                 modal.destroy();
             },
-            fail: function () {
+            fail: function() {
                 modal.setBody(getModalFormBody(className, submittedData, ''));
             }
         }]);
@@ -205,11 +207,13 @@ const displayNotSavedWarning = () => {
 const renderConditions = (conditions) => {
     Templates.render(
         'tool_dynamic_cohorts/conditions',
-        {'conditions' : conditions}
+        {'conditions': conditions}
     ).then(function(html) {
         document.querySelector(SELECTORS.CONDITIONS_LIST).innerHTML = html;
         applyConditionActions();
         displayNotSavedWarning();
+
+        return html;
     }).fail(function() {
         Notification.exception({message: 'Error updating conditions'});
     });
@@ -220,18 +224,28 @@ const renderConditions = (conditions) => {
  */
 const applyConditionActions = () => {
     document.getElementsByClassName(SELECTORS.CONDITIONS)[0].addEventListener('click', event => {
-        let element = event.target.tagName === 'SPAN' ? event.target : event.target.parentNode;
+        /* Match with closest(), rather than walking one node up from the target and testing
+           className for exact equality. The controls are buttons now, so that a keyboard
+           user can reach them at all, and a button carries Bootstrap classes alongside the
+           action class — an equality test would never match again, and the icon inside the
+           button is more than one node deep. */
+        const element = event.target.closest('.' + SELECTORS.CONDITION_DELETE_ACTION + ', .'
+            + SELECTORS.CONDITION_EDIT_ACTION);
+
+        if (element === null) {
+            return;
+        }
 
         // On a click to a delete icon, grab the position of the selected for deleting condition
         // and remove an element of that position from the list of all existing conditions.
         // Then save updated list of conditions to the rule form and render new list on a screen.
-        if (element.className === SELECTORS.CONDITION_DELETE_ACTION) {
+        if (element.classList.contains(SELECTORS.CONDITION_DELETE_ACTION)) {
             Notification.confirm(
                 getString('confirm', 'moodle'),
                 getString('delete_confirm_condition', 'tool_dynamic_cohorts'),
                 getString('yes', 'moodle'),
                 getString('no', 'moodle'),
-                function () {
+                function() {
                     let sortorder = element.dataset.sortorder;
                     let conditions = getConditions()
                         .filter(c => c.sortorder != sortorder)
@@ -243,7 +257,7 @@ const applyConditionActions = () => {
 
         // On a click to an edit icon for a selected condition, grab condition data from the list of
         // all conditions by its position and then render modal form using the condition class.
-        if (element.className === SELECTORS.CONDITION_EDIT_ACTION) {
+        if (element.classList.contains(SELECTORS.CONDITION_EDIT_ACTION)) {
             let sortorder = element.dataset.sortorder;
             let conditions = getConditions();
             let condition = conditions[sortorder];

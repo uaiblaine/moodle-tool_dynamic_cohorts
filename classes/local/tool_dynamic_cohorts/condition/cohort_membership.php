@@ -19,7 +19,6 @@ namespace tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition;
 use tool_dynamic_cohorts\cohort_manager;
 use tool_dynamic_cohorts\condition_base;
 use tool_dynamic_cohorts\condition_sql;
-use html_writer;
 
 /**
  * Condition based on cohort membership.
@@ -191,7 +190,7 @@ class cohort_membership extends condition_base {
     public function get_broken_description(): string {
         if ($this->is_using_rule_cohort()) {
             $description = get_string('condition:cohort_membership_broken_description', 'tool_dynamic_cohorts');
-            $description .= html_writer::empty_tag('br');
+            $description .= '<br />';
             $description .= $this->get_config_description();
         } else {
             $description = parent::get_broken_description();

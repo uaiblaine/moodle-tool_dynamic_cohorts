@@ -187,7 +187,13 @@ class user_enrolment extends condition_base {
         global $DB;
 
         $coursename = $DB->get_field('course', 'fullname', ['id' => $this->get_courseid_value()]);
-        $coursename = format_string($coursename, true, ['context' => \context_system::instance(), 'escape' => false]);
+        /* No 'escape' => false here: the description lands in a Mustache TRIPLE stash
+           ({{{description}}} in templates/conditions.mustache), which renders raw, so it
+           needs the ESCAPED spelling. With escape off, format_string returns bare
+           strip_tags() output — a name containing "&" reaches the page as the start of an
+           entity, and with formatstringstriptags off it carries purifier-permitted markup
+           straight into the table. */
+        $coursename = format_string($coursename, true, ['context' => \context_system::instance()]);
 
         return get_string('condition:user_enrolment_description', 'tool_dynamic_cohorts', (object) [
             'operator' => strtolower($this->get_operators()[$this->get_operator_value()]),

@@ -23,7 +23,8 @@
     * none
 
     Data attributes required for JS:
-    * none
+    * data-action="addrule" - amd/src/manage_rules.js binds the add-rule modal to it and
+      cancels the default navigation, so the href is only the no-JS fallback.
 
     Context variables required for this template:
     * url - URL of the button.
@@ -31,8 +32,8 @@
 
     Example context (json):
     {
-        "url" : "https://example.com/admin/tool/dynamic_cohorts/edit.php",
-        "text" : "Add new rule"
+        "url": "https://example.com/admin/tool/dynamic_cohorts/index.php",
+        "text": "Add a new rule"
     }
 }}
 

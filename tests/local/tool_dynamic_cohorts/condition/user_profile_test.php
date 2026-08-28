@@ -17,6 +17,8 @@
 namespace tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition;
 
 use tool_dynamic_cohorts\condition_base;
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * Unit tests for user profile condition class.
@@ -24,9 +26,8 @@ use tool_dynamic_cohorts\condition_base;
  * @package     tool_dynamic_cohorts
  * @copyright   2024 Catalyst IT
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- *
- * @covers \tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition\user_profile
  */
+#[CoversClass(\tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition\user_profile::class)]
 final class user_profile_test extends \advanced_testcase {
     /**
      * Get condition instance for testing.
@@ -103,10 +104,10 @@ final class user_profile_test extends \advanced_testcase {
     /**
      * Test getting config description.
      *
-     * @dataProvider config_description_data_provider
      * @param int $operator
      * @param string $expected
      */
+    #[DataProvider('config_description_data_provider')]
     public function test_config_description(int $operator, string $expected): void {
         $instance = $this->get_condition([
             'profilefield' => 'firstname',

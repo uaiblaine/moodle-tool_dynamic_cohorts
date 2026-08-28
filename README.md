@@ -1,5 +1,5 @@
-<a href="https://github.com/catalyst/moodle-tool_dynamic_cohorts/actions/workflows/ci.yml?query=branch%3AMOODLE_404_STABLE">
-<img src="https://github.com/catalyst/moodle-tool_dynamic_cohorts/workflows/ci/badge.svg">
+<a href="https://github.com/uaiblaine/moodle-tool_dynamic_cohorts/actions/workflows/ci.yml?query=branch%3AMOODLE_501_STABLE">
+<img src="https://github.com/uaiblaine/moodle-tool_dynamic_cohorts/workflows/ci/badge.svg">
 </a>
 
 # Dynamic cohorts #
@@ -8,11 +8,17 @@ Dynamic cohorts plugin allows dynamically add and remove users from cohorts base
 
 # Versions and branches
 
-| Moodle Version   | Branch            | 
-|------------------|-------------------|
-| Moodle 4.1 - 4.3 | MOODLE_401_STABLE | 
-| Moodle 4.4+      | MOODLE_404_STABLE | 
+This is a fork of [catalyst/moodle-tool_dynamic_cohorts](https://github.com/catalyst/moodle-tool_dynamic_cohorts),
+maintained against the Moodle versions this site runs.
 
+| Moodle version | Branch              |
+|----------------|---------------------|
+| Moodle 5.1     | `MOODLE_501_STABLE` |
+| Moodle 5.2     | `MOODLE_501_STABLE` |
+
+`$plugin->supported = [501, 502]`, so the plugin refuses to install outside that
+range. For Moodle 4.1 - 4.5, use the corresponding branch of the upstream
+repository — this fork does not carry them.
 
 ## Installing via uploaded ZIP file ##
 
@@ -153,6 +159,24 @@ Task processing is orchestrated by a simple mechanism:
    b) If bulk processing is enabled, users will be inserted directly in to the DB in batches, bypassing the core API
 
 
+# Requirements
+
+* Moodle 5.1 or 5.2.
+* At least one manually created cohort that no other plugin manages.
+
+# Capabilities
+
+`tool/dynamic_cohorts:manage` (system context) — create, edit, enable, disable and delete
+rules, and view the list of users a rule matches. It carries `RISK_PERSONAL`: the matching
+users report lists every matched user's username, email address and ID number, and can be
+downloaded. No role holds it by default, so it is admin-only until granted explicitly.
+
+# Privacy
+
+The plugin stores no data about the users a rule matches. It records only which user
+created or last updated each rule and each condition (the `usermodified` column on both of
+its tables), and the privacy provider exports and deletes that on request.
+
 ## Warm thanks ##
 
 Plugin funded by Murdoch University, Perth, Western Australia (https://www.murdoch.edu.au/) 
@@ -160,6 +184,9 @@ Plugin funded by Murdoch University, Perth, Western Australia (https://www.murdo
 ## License ##
 
 2024 Catalyst IT
+
+Fork maintained by Anderson Blaine. Changes made in this fork are listed in
+[CHANGELOG.md](CHANGELOG.md).
 
 This program is free software: you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software

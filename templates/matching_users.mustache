@@ -17,15 +17,33 @@
 {{!
     @template tool_dynamic_cohorts/matching_users
 
-    Matching html element.
+    A placeholder for the matching-users count of one rule. The count arrives over AJAX
+    and the control opens the matching-users modal.
+
+    Classes required for JS:
+    * tool-dynamic-cohorts-matching-users - amd/src/manage_rules.js finds every instance,
+      unhides the second child, appends the count inside the control it holds and binds
+      the modal to that control.
+
+    Data attributes required for JS:
+    * data-ruleid - the rule whose count is fetched.
+
+    Context variables required for this template:
+    * ruleid - ID of the rule.
+
+    The control is a button, not a link: the click is handled entirely in JS and the count
+    is appended after the visually hidden label, so the accessible name reads "Matching
+    users: 1 234" rather than a bare number. A plain aria-label would have replaced the
+    count instead of introducing it.
 
     Example context (json):
     {
-        "ruleid": "10",
-        "url": "https://example.com/admin/tool/dynamic_cohorts/users.php?ruleid=12"
+        "ruleid": "10"
     }
 }}
 <div class="tool-dynamic-cohorts-matching-users" data-ruleid="{{ruleid}}">
-    <span class="">{{#pix}} i/loading, core, {{#str}} loading {{/str}} {{/pix}}</span>
-    <div class="hidden"><a href="{{{url}}}"></a></div>
+    <span>{{#pix}} i/loading, core, {{#str}} loading {{/str}} {{/pix}}</span>
+    <div class="hidden">
+        <button type="button" class="btn btn-link p-0 border-0 align-baseline"><span class="visually-hidden">{{#str}} matchingusers, tool_dynamic_cohorts {{/str}}: </span></button>
+    </div>
 </div>

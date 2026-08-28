@@ -26,7 +26,18 @@
 defined('MOODLE_INTERNAL') || die();
 
 $capabilities = [
+    /*
+     * RISK_PERSONAL: this capability is the only check on the matching-users report
+     * (reportbuilder\local\systemreports\matching_users::can_view()), which lists every
+     * user a rule selects together with their username, email and idnumber, and is
+     * explicitly downloadable. The same data is reachable through the web services in
+     * db/services.php, all of which this capability alone authorises. Without the flag
+     * the Define roles screen offers no warning when it is granted to a non-admin role.
+     * Core's precedent for the same exposure is moodle/user:viewalldetails.
+     * Archetypes stay empty on purpose: admin-only by default.
+     */
     'tool/dynamic_cohorts:manage' => [
+        'riskbitmask' => RISK_PERSONAL,
         'captype' => 'write',
         'contextlevel' => CONTEXT_SYSTEM,
         'archetypes' => [

@@ -30,6 +30,9 @@ use tool_dynamic_cohorts\event\condition_updated;
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class condition_manager {
+    /** @var array Per-request memo of get_all_conditions(), keyed by the $excludebroken flag. */
+    private static $allconditions = [];
+
     /**
      * Get a list of all exising conditions.
      *
@@ -37,6 +40,21 @@ class condition_manager {
      * @return condition_base[]
      */
     public static function get_all_conditions(bool $excludebroken = true): array {
+        /* Memoised per request, not in MUC: get_name() resolves a lang string, so a
+           persistent cache would need current_language() in its key. The memo matters
+           because get_conditions_with_event() calls this for EVERY event the site fires
+           (db/events.php registers '*'), and each uncached call reflects and instantiates
+           all thirteen condition classes and then sorts them through the string manager. */
+        $key = (int) $excludebroken;
+
+        /* Not under PHPUnit: tests install condition classes, break and unbreak them and
+           switch language inside one process, and a memo that outlived a test would hand
+           the next one a stale list. Nothing resets plugin statics between tests
+           automatically, so the guard is the reset. */
+        if (!PHPUNIT_TEST && isset(self::$allconditions[$key])) {
+            return self::$allconditions[$key];
+        }
+
         $instances = [];
         $classes = core_component::get_component_classes_in_namespace(null, '\\local\\tool_dynamic_cohorts\\condition');
 
@@ -49,7 +67,8 @@ class condition_manager {
                     continue;
                 }
 
-                $instances[$class] = $class::get_instance();
+                // Reuse the instance built above rather than constructing a second one.
+                $instances[$class] = $instance;
             }
         }
 
@@ -57,6 +76,8 @@ class condition_manager {
         uasort($instances, function (condition_base $a, condition_base $b) {
             return ($a->get_name() <=> $b->get_name());
         });
+
+        self::$allconditions[$key] = $instances;
 
         return $instances;
     }
@@ -210,14 +231,15 @@ class condition_manager {
      * A helper function to build sql data for given list of conditions.
      *
      * @param \tool_dynamic_cohorts\condition[] $conditions A list of conditions.
-     * @param string $operator Logical operator.
+     * @param int $operator Logical operator, one of rule_manager::CONDITIONS_OPERATOR_AND or
+     *                      rule_manager::CONDITIONS_OPERATOR_OR.
      * @param int|null $userid Optional user id in case we need to build SQL for one user. For example when event is triggered.
      *
      * @return \tool_dynamic_cohorts\condition_sql
      */
     public static function build_sql_data(
         array $conditions,
-        string $operator = rule_manager::CONDITIONS_OPERATOR_AND,
+        int $operator = rule_manager::CONDITIONS_OPERATOR_AND,
         ?int $userid = null
     ): condition_sql {
         $where = '';

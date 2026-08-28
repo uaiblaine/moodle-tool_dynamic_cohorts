@@ -122,7 +122,12 @@ trait fields_trait {
                 case self::FIELD_DATA_TYPE_SELECT:
                 case self::FIELD_DATA_TYPE_MENU:
                 case self::FIELD_DATA_TYPE_CHECKBOX:
-                    $fieldvalue = $fieldinfo[$fieldname]->param1[$fieldvalue];
+                    /* Fall back to the stored value when the option list no longer carries
+                       it. The list is rebuilt from live data on every call (profile field
+                       options, cohort contexts), so an option removed after the condition
+                       was saved made this an undefined array key: a PHP warning, which
+                       PHPUnit fails the build over, and an empty description on screen. */
+                    $fieldvalue = $fieldinfo[$fieldname]->param1[$fieldvalue] ?? $fieldvalue;
                     break;
                 case self::FIELD_DATA_TYPE_DATE:
                 case self::FIELD_DATA_TYPE_DATETIME:
@@ -409,8 +414,15 @@ trait fields_trait {
                 $params[$param] = 0;
                 break;
             case self::TEXT_IS_NOT_EMPTY:
+                /* Bind 0, not the configured date: "is not empty" means the stored
+                   timestamp is not zero, exactly as the TEXT_IS_EMPTY branch above reads
+                   it. The date element is only hideIf()-hidden when this operator is
+                   chosen, never disabled, so the form still posts a real timestamp (the
+                   default is usergetmidnight(time())) and the comparison became
+                   "<> today's midnight" — including every user whose date IS empty and
+                   excluding any user whose date happened to equal that midnight. */
                 $where = "$field <> :$param";
-                $params[$param] = (int) $fieldvalue;
+                $params[$param] = 0;
                 break;
             case self::DATE_IS_BEFORE:
                 $where = "$field <= :$param";
@@ -458,14 +470,22 @@ trait fields_trait {
         // space when we build following SQL.
         $space = $addspace ? ' ' : '';
 
-        // User data for multiselect fields is stored like  Option 1, Option 2, Option 3.
-        // So to be accurate in our SQL we have to cover three scenarios:
-        // 1. Value is in the beginning of the string.
-        // 2. Value is somewhere in the middle.
-        // 3. Value is at the end of the string.
-        // So our SQL should like:
-        // WHERE data like 'value%' OR data like '% value, %' OR data like '%, value'
-        // This is a bit hacky, but should give us accurate results.
+        /* User data for multiselect fields is stored like  Option 1, Option 2, Option 3.
+           So to be accurate in our SQL we have to cover four scenarios:
+           1. Value is the only element, so the whole column equals it.
+           2. Value is at the beginning of the string, terminated by the separator.
+           3. Value is somewhere in the middle.
+           4. Value is at the end of the string.
+           So our SQL should look like:
+           WHERE data like 'value' OR data like 'value, %' OR data like '%, value, %' OR data like '%, value'
+           This is a bit hacky, but should give us accurate results.
+
+           The sole-element and start patterns used to be one bare 'value%', which is an
+           UNANCHORED prefix: with options named "Option 1" and "Option 10", selecting
+           "Option 1" matched a user storing "Option 10, Option 2". The NOT_EQUAL_TO branch
+           inherited it with the opposite sign, wrongly excluding that user.
+           sql_like_escape() neutralises % and _; it anchors nothing. */
+        $soleparam = condition_sql::generate_param_alias();
         $startparam = condition_sql::generate_param_alias();
         $middleparam = condition_sql::generate_param_alias();
         $endparam = condition_sql::generate_param_alias();
@@ -474,8 +494,11 @@ trait fields_trait {
             case self::TEXT_IS_EQUAL_TO:
                 $value = $DB->sql_like_escape($fieldvalue);
 
-                $where = $DB->sql_like("$tablealias.$fieldname", ":$startparam", false, false);
-                $params[$startparam] = "$value%";
+                $where = $DB->sql_like("$tablealias.$fieldname", ":$soleparam", false, false);
+                $params[$soleparam] = $value;
+
+                $where .= ' OR ' . $DB->sql_like("$tablealias.$fieldname", ":$startparam", false, false);
+                $params[$startparam] = "$value,$space%";
 
                 $where .= ' OR ' . $DB->sql_like("$tablealias.$fieldname", ":$middleparam", false, false);
                 $params[$middleparam] = "%,$space$value,$space%";
@@ -487,8 +510,11 @@ trait fields_trait {
             case self::TEXT_IS_NOT_EQUAL_TO:
                 $value = $DB->sql_like_escape($fieldvalue);
 
-                $where = $DB->sql_like("$tablealias.$fieldname", ":$startparam", false, false, true);
-                $params[$startparam] = "$value%";
+                $where = $DB->sql_like("$tablealias.$fieldname", ":$soleparam", false, false, true);
+                $params[$soleparam] = $value;
+
+                $where .= ' AND ' . $DB->sql_like("$tablealias.$fieldname", ":$startparam", false, false, true);
+                $params[$startparam] = "$value,$space%";
 
                 $where .= ' AND ' . $DB->sql_like("$tablealias.$fieldname", ":$middleparam", false, false, true);
                 $params[$middleparam] = "%,$space$value,$space%";

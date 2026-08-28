@@ -18,6 +18,7 @@ namespace tool_dynamic_cohorts\external;
 
 use externallib_advanced_testcase;
 use tool_dynamic_cohorts\rule;
+use PHPUnit\Framework\Attributes\CoversClass;
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -30,9 +31,8 @@ require_once($CFG->dirroot . '/webservice/tests/helpers.php');
  * @package    tool_dynamic_cohorts
  * @copyright  2024 Catalyst IT
  * @license    https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- *
- * @covers     \tool_dynamic_cohorts\external\rules
  */
+#[CoversClass(\tool_dynamic_cohorts\external\rules::class)]
 final class rules_test extends externallib_advanced_testcase {
     /**
      * Test exception if rule is not exist.
@@ -142,7 +142,9 @@ final class rules_test extends externallib_advanced_testcase {
         $rule->save();
 
         $this->expectException(\invalid_parameter_exception::class);
-        $this->expectExceptionMessage('A broken rule can\'t be enabled ID: ' . $rule->get('id'));
+        $this->expectExceptionMessage(
+            get_string('cannotenablebrokenrule', 'tool_dynamic_cohorts') . ' ID: ' . $rule->get('id')
+        );
 
         rules::toggle_status($rule->get('id'));
     }

@@ -24,9 +24,22 @@
 
 defined('MOODLE_INTERNAL') || die();
 
+/*
+ * 'internal' => false matters here. core\event\manager::init_all_observers() defaults a
+ * missing 'internal' to TRUE, and process_buffers() defers only non-internal observers
+ * while a transaction is open — so without this flag the callback ran inside whatever
+ * transaction the triggering code held. That callback is not small: observer::process_event
+ * runs a full SELECT over {user} with every condition's joins and then writes cohort
+ * membership, on every matching event, with realtime processing on by default. It
+ * lengthened unrelated transactions site-wide, and a write failure inside one poisons the
+ * whole transaction on PostgreSQL. Note this does NOT make observer failures visible:
+ * manager.php catches \Exception from observers and downgrades it to debugging() either
+ * way. Observer definitions are cached, so a version.php bump ships with any change here.
+ */
 $observers = [
     [
         'eventname' => '*',
+        'internal' => false,
         'callback' => '\tool_dynamic_cohorts\observer::process_event',
     ],
 ];

@@ -36,6 +36,17 @@ use tool_dynamic_cohorts\reportbuilder\local\systemreports\matching_users;
 function tool_dynamic_cohorts_output_fragment_condition_form(array $args): string {
     $args = (object) $args;
 
+    /* core_get_fragment does no access control beyond validate_context() — its own
+       docblock says "callbacks that are called by this web service are responsible for
+       doing the appropriate security checks" (lib/external/externallib.php). On a system
+       context that reduces to require_login(), so every authenticated user could reach
+       this callback. The condition forms it renders enumerate cohort names and ids
+       (cohort_membership), role names, courses and enrolment methods (user_role,
+       user_enrolment) and custom profile field menu options (user_custom_profile) —
+       including entries the caller has no business seeing. The sibling matching_users
+       fragment is covered by the system report's own can_view(); this one had nothing. */
+    require_capability('tool/dynamic_cohorts:manage', context_system::instance());
+
     $classname = clean_param($args->classname, PARAM_RAW);
 
     $ajaxdata = [];
@@ -72,6 +83,11 @@ function tool_dynamic_cohorts_output_fragment_condition_form(array $args): strin
  */
 function tool_dynamic_cohorts_output_fragment_matching_users(array $args): string {
     $args = (object) $args;
+
+    // The system report below enforces this too, via its own can_view(). Stated here as
+    // well so the callback does not depend on a check that lives in another class.
+    require_capability('tool/dynamic_cohorts:manage', context_system::instance());
+
     $ruleid = clean_param($args->ruleid, PARAM_INT);
 
     $rule = rule::get_record(['id' => $ruleid]);

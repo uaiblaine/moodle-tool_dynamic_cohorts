@@ -142,13 +142,26 @@ class user_profile extends condition_base {
                     $fields[$field]->param1 = $options;
                     break;
                 case 'suspended':
-                    $fields[$field]->name = get_string($field);
+                    $fields[$field]->name = get_string('suspended');
                     $fields[$field]->datatype = self::FIELD_DATA_TYPE_CHECKBOX;
                     $fields[$field]->param1 = array_combine([0, 1], [get_string('no'), get_string('yes')]);
-                    ;
                     break;
                 default:
-                    $fields[$field]->name = get_string($field);
+                    /* A literal per field rather than get_string($field): the fleet bans
+                       dynamic string ids, and the cost is the usual one — none of these
+                       core key names appears in a grep of this plugin, so a sweep for
+                       unused strings cannot see that they are in use. */
+                    $fields[$field]->name = match ($field) {
+                        'firstname' => get_string('firstname'),
+                        'lastname' => get_string('lastname'),
+                        'username' => get_string('username'),
+                        'email' => get_string('email'),
+                        'idnumber' => get_string('idnumber'),
+                        'city' => get_string('city'),
+                        'country' => get_string('country'),
+                        'institution' => get_string('institution'),
+                        'department' => get_string('department'),
+                    };
                     $fields[$field]->datatype = self::FIELD_DATA_TYPE_TEXT;
                     $fields[$field]->paramtype = core_user::get_property_type($field);
                     break;

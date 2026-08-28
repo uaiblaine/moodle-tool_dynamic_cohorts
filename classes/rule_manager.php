@@ -17,7 +17,6 @@
 namespace tool_dynamic_cohorts;
 
 use cache;
-use moodle_url;
 use moodle_exception;
 use tool_dynamic_cohorts\event\matching_failed;
 use tool_dynamic_cohorts\event\rule_created;
@@ -51,28 +50,16 @@ class rule_manager {
      */
     const CONDITIONS_OPERATOR_OR = 1;
 
-    /**
-     * Builds rule edit URL.
-     *
-     * @param rule $rule Rule instance.
-     * @return moodle_url
-     */
-    public static function build_edit_url(rule $rule): moodle_url {
-        return new moodle_url('/admin/tool/dynamic_cohorts/edit.php', ['ruleid' => $rule->get('id')]);
-    }
-
-    /**
-     * Builds rule delete URL.
-     *
-     * @param rule $rule Rule instance.
-     * @return moodle_url
-     */
-    public static function build_delete_url(rule $rule): moodle_url {
-        return new \moodle_url('/admin/tool/dynamic_cohorts/delete.php', [
-            'ruleid' => $rule->get('id'),
-            'sesskey' => sesskey(),
-        ]);
-    }
+    /*
+       build_edit_url() and build_delete_url() used to live here. They returned URLs to
+       edit.php and delete.php, both of which upstream deleted in 94e7a8e ("move edit
+       form to modal") along with toggle.php and users.php — every one of those flows is
+       a modal driven by amd/src/manage_rules.js now. The two builders survived the
+       deletion with nothing calling them but their own tests, so they were a pair of
+       public methods handing out URLs that 404. Editing and deleting are reached
+       through the report builder actions in
+       reportbuilder\local\systemreports\rules::add_actions(), which point at index.php
+       and carry the rule id in a data attribute for the JS. */
 
     /**
      * Build data for setting into a rule form as default values.
@@ -165,9 +152,13 @@ class rule_manager {
 
             $transaction->allow_commit();
             return $rule;
-        } catch (\Exception $exception) {
+        } catch (\Throwable $exception) {
+            /* Throwable, not Exception, so a TypeError inside the transaction rolls it back
+               too. And no re-throw: rollback() re-throws the ORIGINAL exception itself, so
+               `throw new $exception()` was constructing a second, argument-less copy that
+               could never be reached — and would have lost the message and the previous
+               exception if it had been. This is core's own shape (competency\api). */
             $transaction->rollback($exception);
-            throw new $exception();
         }
     }
 
@@ -364,20 +355,39 @@ class rule_manager {
 
         if ($rule->is_bulk_processing()) {
             $timeadded = time();
-            foreach (array_chunk($userstoadd, self::BULK_PROCESSING_SIZE) as $users) {
+            /* $chunk, not $users: the original loop bound its variable to $users, which is
+               the matching-user set this method is still holding. It happened to be
+               harmless only because nothing read $users again below. */
+            foreach (array_chunk($userstoadd, self::BULK_PROCESSING_SIZE) as $chunk) {
                 $records = [];
-                foreach ($users as $user) {
+                foreach ($chunk as $user) {
                     $record = new \stdClass();
                     $record->userid = $user->id;
                     $record->cohortid = $cohortid;
                     $record->timeadded = $timeadded;
                     $records[] = $record;
                 }
-                $DB->insert_records('cohort_members', $records);
+
+                /* Replay the chunk member by member when the batch insert fails. This is
+                   the fleet's chunk-then-replay rule for mass membership writes, and the
+                   per-row membership re-check is not optional: insert_records() is not
+                   transactional and the pgsql driver commits in sub-batches, so part of a
+                   failed chunk may already be in the table. Falling back to
+                   cohort_add_member() also means the replayed rows fire the normal cohort
+                   events, which the bulk path deliberately skips. */
+                try {
+                    $DB->insert_records('cohort_members', $records);
+                } catch (\dml_exception $exception) {
+                    foreach ($records as $record) {
+                        if (!cohort_is_member($cohortid, $record->userid)) {
+                            cohort_add_member($cohortid, $record->userid);
+                        }
+                    }
+                }
             }
 
-            foreach (array_chunk($userstodelete, self::BULK_PROCESSING_SIZE) as $users) {
-                $userids = array_column($users, 'userid');
+            foreach (array_chunk($userstodelete, self::BULK_PROCESSING_SIZE) as $chunk) {
+                $userids = array_column($chunk, 'userid');
                 [$insql, $inparams] = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED);
                 $sql = "userid $insql AND cohortid = :cohort";
                 $inparams['cohort'] = $cohortid;

@@ -111,7 +111,7 @@ class cohort_field extends condition_base {
                     $fields[$field]->param1 = $options;
                     break;
                 case 'visible':
-                    $fields[$field]->name = get_string($field, 'cohort');
+                    $fields[$field]->name = get_string('visible', 'cohort');
                     $fields[$field]->param1 = array_combine([0, 1], [get_string('no'), get_string('yes')]);
                     $fields[$field]->datatype = self::FIELD_DATA_TYPE_CHECKBOX;
                     $fields[$field]->paramtype = PARAM_INT;
@@ -122,45 +122,50 @@ class cohort_field extends condition_base {
                     $fields[$field]->paramtype = PARAM_TEXT;
                     break;
                 default:
-                    $fields[$field]->name = get_string($field, 'cohort');
+                    // Literal ids, not get_string($field, ...) — the fleet bans dynamic string ids.
+                    $fields[$field]->name = match ($field) {
+                        'name' => get_string('name', 'cohort'),
+                        'idnumber' => get_string('idnumber', 'cohort'),
+                        'component' => get_string('component', 'cohort'),
+                    };
                     $fields[$field]->datatype = self::FIELD_DATA_TYPE_TEXT;
                     $fields[$field]->paramtype = PARAM_TEXT;
                     break;
             }
         }
 
-        // Workout custom fields if they are available.
-        if (class_exists(\core_cohort\customfield\cohort_handler::class)) {
-            $handler = \core_cohort\customfield\cohort_handler::create();
+        /* Work out custom fields. The class_exists() guard that used to wrap this was a
+           4.4-era shim: core_cohort\customfield\cohort_handler has existed since Moodle
+           4.3, and this plugin now requires 5.1. */
+        $handler = \core_cohort\customfield\cohort_handler::create();
 
-            foreach ($handler->get_fields() as $customfield) {
-                if (!in_array($customfield->get('type'), $this->get_supported_custom_fields())) {
-                    continue;
-                }
+        foreach ($handler->get_fields() as $customfield) {
+            if (!in_array($customfield->get('type'), $this->get_supported_custom_fields())) {
+                continue;
+            }
 
-                $shortname = self::CUSTOM_FIELD_PREFIX . $customfield->get('shortname');
-                $fields[$shortname] = new \stdClass();
-                $fields[$shortname]->id = $customfield->get('id');
-                $fields[$shortname]->name = $customfield->get_formatted_name();
-                $fields[$shortname]->shortname = $shortname;
-                $fields[$shortname]->datatype = $customfield->get('type');
+            $shortname = self::CUSTOM_FIELD_PREFIX . $customfield->get('shortname');
+            $fields[$shortname] = new \stdClass();
+            $fields[$shortname]->id = $customfield->get('id');
+            $fields[$shortname]->name = $customfield->get_formatted_name();
+            $fields[$shortname]->shortname = $shortname;
+            $fields[$shortname]->datatype = $customfield->get('type');
 
-                switch ($fields[$shortname]->datatype) {
-                    case self::FIELD_DATA_TYPE_SELECT:
-                        $fields[$shortname]->param1 = $customfield->get_options();
-                        break;
-                    case self::FIELD_DATA_TYPE_TEXT:
-                        $fields[$shortname]->paramtype = PARAM_TEXT;
-                        break;
-                    case self::FIELD_DATA_TYPE_CHECKBOX:
-                        $fields[$shortname]->param1 = array_combine([0, 1], [get_string('no'), get_string('yes')]);
-                        break;
-                    case self::FIELD_DATA_TYPE_DATE:
-                        $fields[$shortname]->paramtype = PARAM_INT;
-                        break;
-                    default:
-                        throw new coding_exception('Invalid field type ' . $fields[$shortname]->datatype);
-                }
+            switch ($fields[$shortname]->datatype) {
+                case self::FIELD_DATA_TYPE_SELECT:
+                    $fields[$shortname]->param1 = $customfield->get_options();
+                    break;
+                case self::FIELD_DATA_TYPE_TEXT:
+                    $fields[$shortname]->paramtype = PARAM_TEXT;
+                    break;
+                case self::FIELD_DATA_TYPE_CHECKBOX:
+                    $fields[$shortname]->param1 = array_combine([0, 1], [get_string('no'), get_string('yes')]);
+                    break;
+                case self::FIELD_DATA_TYPE_DATE:
+                    $fields[$shortname]->paramtype = PARAM_INT;
+                    break;
+                default:
+                    throw new coding_exception('Invalid field type ' . $fields[$shortname]->datatype);
             }
         }
 
@@ -418,14 +423,23 @@ class cohort_field extends condition_base {
                                        WHERE {$fieldstable}.fieldid = :{$fieldidparam}) {$fieldstable}
                                   ON {$fieldstable}.instanceid = {$cohorttbl}.id
                                      $fieldjoin
-                               WHERE $cohortwhere";
+                               WHERE ($cohortwhere)";
             } else {
                 $cohorttbl = $fieldstable;
                 $cohortsql = "SELECT $cohorttbl.id
                                 FROM {cohort} $cohorttbl
                                      $fieldjoin
-                               WHERE $fieldwhere";
+                               WHERE ($fieldwhere)";
             }
+
+            /* Both WHERE bodies are parenthesised because the self-exclusion below is
+               appended with AND, which binds tighter than OR. $cohortwhere gains a
+               top-level OR whenever "include missing data" is ticked, and get_date_sql()
+               emits one for "is empty" — so "WHERE A OR B AND id <> :own" excluded the
+               rule's own cohort from the second disjunct only, letting the rule re-affirm
+               the members it had added itself. The non-custom branch cannot reach a
+               top-level OR today (its fields are only text/menu/checkbox), but it is
+               wrapped too so a future date-typed standard field cannot reopen this. */
 
             // Exclude cohort that managed by a related rule.
             $rule = $this->get_rule();

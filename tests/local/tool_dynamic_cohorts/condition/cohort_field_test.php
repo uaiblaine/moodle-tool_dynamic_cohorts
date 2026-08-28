@@ -18,6 +18,8 @@ namespace tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition;
 
 use tool_dynamic_cohorts\condition_base;
 use tool_dynamic_cohorts\rule;
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * Unit tests for cohort field condition class.
@@ -25,9 +27,8 @@ use tool_dynamic_cohorts\rule;
  * @package     tool_dynamic_cohorts
  * @copyright   2024 Catalyst IT
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- *
- * @covers     \tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition\cohort_field
  */
+#[CoversClass(\tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition\cohort_field::class)]
 final class cohort_field_test extends \advanced_testcase {
     /**
      * Get condition instance for testing.
@@ -107,10 +108,10 @@ final class cohort_field_test extends \advanced_testcase {
     /**
      * Test getting config description.
      *
-     * @dataProvider config_description_data_provider
      * @param int $operator
      * @param string $expected
      */
+    #[DataProvider('config_description_data_provider')]
     public function test_config_description(int $operator, string $expected): void {
         $condition = $this->get_condition([
             'cohort_field_operator' => cohort_field::OPERATOR_IS_NOT_MEMBER_OF,
@@ -127,6 +128,14 @@ final class cohort_field_test extends \advanced_testcase {
      */
     public function test_config_description_context_id(): void {
         $this->resetAfterTest();
+
+        /* The context option list is built with core_course_category::make_categories_list(),
+           which returns only the categories the CURRENT user may see. Without a user the
+           list is empty, the name lookup misses, and the assertion below compares against a
+           description the condition could never have produced. This condition is only ever
+           configured by a holder of tool/dynamic_cohorts:manage, so an admin is the honest
+           fixture. */
+        $this->setAdminUser();
 
         $coursecategory = $this->getDataGenerator()->create_category();
         $catcontext = \context_coursecat::instance($coursecategory->id);

@@ -21,6 +21,7 @@ use tool_dynamic_cohorts\condition;
 use tool_dynamic_cohorts\rule;
 use tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition\cohort_membership;
 use tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition\user_profile;
+use PHPUnit\Framework\Attributes\CoversClass;
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -33,9 +34,8 @@ require_once($CFG->dirroot . '/webservice/tests/helpers.php');
  * @package     tool_dynamic_cohorts
  * @copyright   2024 Catalyst IT
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- *
- * @covers     \tool_dynamic_cohorts\external\rule_conditions
  */
+#[CoversClass(\tool_dynamic_cohorts\external\rule_conditions::class)]
 final class rule_conditions_test extends externallib_advanced_testcase {
     /**
      * Test exception if rule is not exist.
@@ -173,11 +173,17 @@ final class rule_conditions_test extends externallib_advanced_testcase {
             '{"profilefield":"username","username_operator":3,"username_value":""}',
             $conditions[$condition4->get_record()->get('id')]['configdata']
         );
+        /* condition4, not condition2. These two assertions named condition2 — already
+           asserted verbatim thirteen lines above — so the broken condition's description
+           and name were never checked at all. condition4 has an empty username_value, so
+           it is broken (see the broken => true assertion below), and a broken condition
+           reports get_broken_description(), which condition_base defines as the raw
+           stored configdata. */
         $this->assertSame(
-            'Users with Username is equal to user1username',
-            $conditions[$condition2->get_record()->get('id')]['description']
+            '{"profilefield":"username","username_operator":3,"username_value":""}',
+            $conditions[$condition4->get_record()->get('id')]['description']
         );
-        $this->assertSame('User standard profile field', $conditions[$condition2->get_record()->get('id')]['name']);
+        $this->assertSame('User standard profile field', $conditions[$condition4->get_record()->get('id')]['name']);
 
         $this->assertSame(true, $conditions[$condition1->get_record()->get('id')]['broken']);
         $this->assertSame(false, $conditions[$condition2->get_record()->get('id')]['broken']);

@@ -19,6 +19,7 @@ namespace tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition;
 use context_user;
 use core_tag_tag;
 use tool_dynamic_cohorts\condition_base;
+use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
  * Unit tests for user_profile_interests condition class.
@@ -26,9 +27,8 @@ use tool_dynamic_cohorts\condition_base;
  * @package     tool_dynamic_cohorts
  * @copyright   2025 Catalyst IT Australia Pty Ltd
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- *
- * @covers     \tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition\user_profile_interests
  */
+#[CoversClass(\tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition\user_profile_interests::class)]
 final class user_profile_interests_test extends \advanced_testcase {
     /**
      * Set up the test case.

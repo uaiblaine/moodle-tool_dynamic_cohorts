@@ -18,25 +18,25 @@ namespace tool_dynamic_cohorts\event;
 
 use core\event\base;
 
- /**
-  * Event triggered when a rule deleted.
-  *
-  * @property-read array $other {
-  *      Extra information about event.
-  *      - string ruleid: deleted rule id.
-  * }
-  *
-  * @package     tool_dynamic_cohorts
-  * @copyright   2024 Catalyst IT
-  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
-  */
+/**
+ * Event triggered when a rule deleted.
+ *
+ * @property-read array $other {
+ *      Extra information about event.
+ *      - string ruleid: deleted rule id.
+ * }
+ *
+ * @package     tool_dynamic_cohorts
+ * @copyright   2024 Catalyst IT
+ * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
 class rule_deleted extends base {
     /**
      * Initialise the rule data.
      */
     protected function init() {
         $this->data['edulevel'] = self::LEVEL_OTHER;
-        $this->data['crud'] = 'u';
+        $this->data['crud'] = 'd';
         $this->context = \context_system::instance();
     }
 

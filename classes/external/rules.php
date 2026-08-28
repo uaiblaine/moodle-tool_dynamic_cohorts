@@ -126,7 +126,11 @@ class rules extends external_api {
             $rule->save();
             rule_updated::create(['other' => ['ruleid' => $rule->get('id')]])->trigger();
 
-            throw new invalid_parameter_exception('A broken rule can\'t be enabled ID: ' . $ruleid);
+            /* The lang string, not a hardcoded English literal: this message reaches the
+               user through Notification.exception in amd/src/manage_rules.js. */
+            throw new invalid_parameter_exception(
+                get_string('cannotenablebrokenrule', 'tool_dynamic_cohorts') . ' ID: ' . $ruleid
+            );
         }
 
         $newvalue = (int) !$rule->is_enabled();

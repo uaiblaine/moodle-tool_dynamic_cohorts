@@ -45,6 +45,32 @@ const SELECTORS = {
     RULE_ADD: '[data-action=addrule]',
 };
 
+/*
+ * Lang keys are looked up through these maps rather than built by concatenating the action
+ * onto a prefix. The fleet bans dynamic string ids, and the reason shows up here: with
+ * 'completed:' + action in the source, none of the ten key names below appeared anywhere
+ * outside lang/en, so every one of them read as a dead string to a grep, to a translator
+ * and to anyone pruning the lang file.
+ */
+const FEEDBACK_KEYS = {
+    add: 'completed:add',
+    update: 'completed:update',
+    enable: 'completed:enable',
+    disable: 'completed:disable',
+    'delete': 'completed:delete',
+};
+
+const CONFIRM_KEYS = {
+    enable: 'enable_confirm',
+    disable: 'disable_confirm',
+    'delete': 'delete_confirm',
+};
+
+const FORM_TITLE_KEYS = {
+    add: 'add_rule',
+    edit: 'edit_rule',
+};
+
 /**
  * Init of the module.
  */
@@ -96,13 +122,15 @@ const displayMatchingUsers = (ruleid) => {
         title: getString('matchingusers', 'tool_dynamic_cohorts'),
         body: getMatchingUsersModalBody(ruleid),
         large: true,
-    }).then(function (modal) {
+    }).then(function(modal) {
         modal.getRoot().on(ModalEvents.hidden, function() {
             modal.destroy();
         });
 
         modal.show();
-    });
+
+        return modal;
+    }).catch(Notification.exception);
 };
 
 /**
@@ -133,12 +161,12 @@ const loadMatchingUsers = (root) => {
         Ajax.call([{
             methodname: 'tool_dynamic_cohorts_get_total_matching_users_for_rule',
             args: {ruleid: ruleid},
-            done: function (number) {
+            done: function(number) {
                 link.children[0].append(number.toLocaleString().replace(/,/g, " "));
                 loader.classList.add('hidden');
                 link.classList.remove('hidden');
             },
-            fail: function (response) {
+            fail: function(response) {
                 Notification.exception(response);
             }
         }]);
@@ -157,26 +185,31 @@ const initRuleConditionsModals = (root) => {
             Ajax.call([{
                 methodname: 'tool_dynamic_cohorts_get_conditions',
                 args: {ruleid: ruleid},
-                done: function (conditions) {
+                done: function(conditions) {
+                    /* Chained, not nested: the modal promise is returned from the render
+                       then() so both settle on one chain with a single failure handler.
+                       Nesting them left the inner ModalCancel.create() with no rejection
+                       handler at all, so a failure there surfaced as an unhandled
+                       rejection in the console and nothing on screen. */
                     Templates.render(
                         'tool_dynamic_cohorts/conditions',
-                        {'conditions' : conditions, 'hidecontrols': true}
+                        {'conditions': conditions, 'hidecontrols': true}
                     ).then(function(html) {
-                        ModalCancel.create({
+                        return ModalCancel.create({
                             title: getString('conditionsformtitle', 'tool_dynamic_cohorts'),
                             body: html,
                             large: true,
-                        }).then(function (modal) {
-                            modal.getRoot().on(ModalEvents.hidden, function() {
-                                modal.destroy();
-                            });
-                            modal.show();
                         });
-                    }).fail(function(response) {
-                        Notification.exception(response);
-                    });
+                    }).then(function(modal) {
+                        modal.getRoot().on(ModalEvents.hidden, function() {
+                            modal.destroy();
+                        });
+                        modal.show();
+
+                        return modal;
+                    }).catch(Notification.exception);
                 },
-                fail: function (response) {
+                fail: function(response) {
                     Notification.exception(response);
                 }
             }]);
@@ -190,9 +223,11 @@ const initRuleConditionsModals = (root) => {
  * @param {string} action Action to send feedback about.
  */
 const sendFeedback = (action) => {
-    getString('completed:' + action, 'tool_dynamic_cohorts')
+    getString(FEEDBACK_KEYS[action], 'tool_dynamic_cohorts')
         .then(message => {
             notifyUser(message);
+
+            return message;
         }).catch(Notification.exception);
 };
 
@@ -203,6 +238,8 @@ const sendWarning = () => {
     getString('ruledisabledpleasereview', 'tool_dynamic_cohorts')
         .then(message => {
             notifyUser(message, {type: 'warning', closeButton: true, delay: 10000});
+
+            return message;
         }).catch(Notification.exception);
 };
 
@@ -227,19 +264,19 @@ const initRuleToggle = (root) => {
             e.preventDefault();
             Notification.confirm(
                 getString('confirm', 'moodle'),
-                getString(action + '_confirm', 'tool_dynamic_cohorts'),
+                getString(CONFIRM_KEYS[action], 'tool_dynamic_cohorts'),
                 getString('yes', 'moodle'),
                 getString('no', 'moodle'),
-                function () {
+                function() {
                     Ajax.call([{
                         methodname: 'tool_dynamic_cohorts_toggle_rule_status',
                         args: {ruleid: ruleid},
-                        done: function () {
+                        done: function() {
                             sendFeedback(action);
                             DynamicTable.refreshTableContent(getTableRoot())
                                 .catch(Notification.exception);
                         },
-                        fail: function (response) {
+                        fail: function(response) {
                             Notification.exception(response);
                         }
                     }]);
@@ -261,19 +298,19 @@ const initRuleDelete = (root) => {
             e.preventDefault();
             Notification.confirm(
                 getString('confirm', 'moodle'),
-                getString(action + '_confirm', 'tool_dynamic_cohorts', ruleid),
+                getString(CONFIRM_KEYS[action], 'tool_dynamic_cohorts', ruleid),
                 getString('yes', 'moodle'),
                 getString('no', 'moodle'),
-                function () {
+                function() {
                     Ajax.call([{
-                        methodname: 'tool_dynamic_cohorts_delete_rules`',
-                        args: {ruleids: {ruleid}},
-                        done: function () {
+                        methodname: 'tool_dynamic_cohorts_delete_rules',
+                        args: {ruleids: [ruleid]},
+                        done: function() {
                             sendFeedback(action);
                             DynamicTable.refreshTableContent(getTableRoot())
                                 .catch(Notification.exception);
                         },
-                        fail: function (response) {
+                        fail: function(response) {
                             Notification.exception(response);
                         }
                     }]);
@@ -289,7 +326,7 @@ const initRuleAdd = () => {
     // Add listener to the click event that will load the form.
     document.querySelector(SELECTORS.RULE_ADD).addEventListener('click', (e) => {
         e.preventDefault();
-        const modalForm= getRuleForm(0, 'add');
+        const modalForm = getRuleForm(0, 'add');
         modalForm.addEventListener(modalForm.events.FORM_SUBMITTED, () => {
             sendFeedback('add');
             sendWarning();
@@ -312,7 +349,7 @@ const initRuleEdit = (root) => {
             e.preventDefault();
             let ruleid = link.dataset.ruleid;
 
-            const modalForm= getRuleForm(ruleid, 'edit');
+            const modalForm = getRuleForm(ruleid, 'edit');
             modalForm.addEventListener(modalForm.events.FORM_SUBMITTED, () => {
                 sendFeedback('update');
                 sendWarning();
@@ -336,6 +373,6 @@ const getRuleForm = (ruleid, action) => {
     return new ModalForm({
         formClass: "tool_dynamic_cohorts\\rule_form",
         args: {id: ruleid},
-        modalConfig: {title: getString(action + '_rule', 'tool_dynamic_cohorts')},
+        modalConfig: {title: getString(FORM_TITLE_KEYS[action], 'tool_dynamic_cohorts')},
     });
 };

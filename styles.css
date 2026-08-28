@@ -1,6 +1,11 @@
+/* Read the theme's own brand colour rather than shipping one. The Bootstrap 5 token
+   is what 5.1/5.2 define; the Bootstrap 4 name is kept as the first fallback so the
+   rule still resolves if this ever runs on an older branch, and the literal is Boost's
+   own primary, not an invented blue. The previous value (#0036ae) overrode whatever
+   colour the site had configured, and sat on the dark-mode background unchanged. */
 .tool-dynamic-cohorts-condition-edit,
 .tool-dynamic-cohorts-condition-delete,
 .tool-dynamic-cohorts-condition-view {
+    color: var(--bs-link-color, var(--bs-primary, var(--primary, #0f6cbf)));
     cursor: pointer;
-    color: #0036ae;
 }

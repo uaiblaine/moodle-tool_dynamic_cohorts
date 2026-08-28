@@ -18,6 +18,7 @@ namespace tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition;
 
 use tool_dynamic_cohorts\condition_base;
 use tool_dynamic_cohorts\rule;
+use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
  * Unit tests for course_not_completed condition class.
@@ -25,9 +26,8 @@ use tool_dynamic_cohorts\rule;
  * @package     tool_dynamic_cohorts
  * @copyright   2024 Catalyst IT
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- *
- * @covers     \tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition\course_not_completed
  */
+#[CoversClass(\tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition\course_not_completed::class)]
 final class course_not_completed_test extends \advanced_testcase {
     /**
      * Get condition instance for testing.

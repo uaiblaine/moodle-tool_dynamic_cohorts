@@ -29,19 +29,40 @@ use tool_dynamic_cohorts\rule;
  */
 class process_rule extends adhoc_task {
     /**
-     * Task execution
+     * Task name.
+     *
+     * Without this, adhoc_task's fallback returns the raw class name ("Process rule") in
+     * English for every language. It surfaces on admin/tasklogs.php as the log page title
+     * and in the failed-task admin notification, which force_current_language()s first.
+     *
+     * @return string
+     */
+    public function get_name() {
+        return get_string('task_process_rule', 'tool_dynamic_cohorts');
+    }
+
+    /**
+     * Task execution.
+     *
+     * @return void
      */
     public function execute() {
-        $ruleid = $this->get_custom_data();
+        $ruleid = (int) $this->get_custom_data();
 
-        try {
-            $rule = rule::get_record(['id' => $ruleid]);
-        } catch (\Exception $e) {
-            mtrace("Processing dynamic cohort rules: rule with ID  {$ruleid} is not found.");
+        /* rule::get_record() returns FALSE for a missing record, it does not throw: the
+           default strictness is IGNORE_MISSING (lib/classes/persistent.php). A rule
+           deleted between this task being queued and running therefore reached
+           process_rule(false), raising a TypeError — an \Error, not an \Exception, so
+           the old catch here could never have seen it either. The task then failed and
+           was requeued with backoff, forever, over a rule that no longer exists. */
+        $rule = rule::get_record(['id' => $ruleid]);
+
+        if (empty($rule)) {
+            mtrace("Processing dynamic cohort rules: rule with ID {$ruleid} is not found.");
             return;
         }
 
-        mtrace("Processing dynamic cohort rules: processing rule with id  {$ruleid}");
+        mtrace("Processing dynamic cohort rules: processing rule with id {$ruleid}");
         rule_manager::process_rule($rule);
     }
 }

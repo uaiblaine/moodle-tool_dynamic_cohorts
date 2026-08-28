@@ -55,7 +55,13 @@ class course_not_completed extends course_completed {
         global $DB;
 
         $coursename = $DB->get_field('course', 'fullname', ['id' => $this->get_courseid_value()]);
-        $coursename = format_string($coursename, true, ['context' => \context_system::instance(), 'escape' => false]);
+        /* No 'escape' => false here: the description lands in a Mustache TRIPLE stash
+           ({{{description}}} in templates/conditions.mustache), which renders raw, so it
+           needs the ESCAPED spelling. With escape off, format_string returns bare
+           strip_tags() output — a name containing "&" reaches the page as the start of an
+           entity, and with formatstringstriptags off it carries purifier-permitted markup
+           straight into the table. */
+        $coursename = format_string($coursename, true, ['context' => \context_system::instance()]);
 
         return get_string('condition:course_not_completed_description', 'tool_dynamic_cohorts', (object)[
             'course' => $coursename,

@@ -46,7 +46,6 @@ class provider implements core_userlist_provider, metadata_provider, plugin_prov
             [
                 'name' => 'privacy:metadata:tool_dynamic_cohorts:name',
                 'usermodified' => 'privacy:metadata:tool_dynamic_cohorts:usermodified',
-
             ],
             'privacy:metadata:tool_dynamic_cohorts'
         );
@@ -55,8 +54,7 @@ class provider implements core_userlist_provider, metadata_provider, plugin_prov
             'tool_dynamic_cohorts_c',
             [
                 'ruleid' => 'privacy:metadata:tool_dynamic_cohorts_c:ruleid',
-                'usermodified' => 'privacy:metadata:tool_dynamic_cohorts:usermodified',
-
+                'usermodified' => 'privacy:metadata:tool_dynamic_cohorts_c:usermodified',
             ],
             'privacy:metadata:tool_dynamic_cohorts_c'
         );
@@ -125,13 +123,6 @@ class provider implements core_userlist_provider, metadata_provider, plugin_prov
         }
         $recordset->close();
 
-        if (count($rules) > 0) {
-            $context = \context_system::instance();
-            $contextpath = [get_string('pluginname', 'tool_dynamic_cohorts')];
-
-            writer::with_context($context)->export_data($contextpath, (object) ['rules' => $rules]);
-        }
-
         // Conditions.
         $conditions = [];
         $sql = 'SELECT c.*, r.name as rulename
@@ -150,11 +141,20 @@ class provider implements core_userlist_provider, metadata_provider, plugin_prov
         }
         $recordset->close();
 
-        if (count($conditions) > 0) {
+        /* One export_data() call carrying both collections, not one per collection.
+           moodle_content_writer::export_data() resolves a subcontext to a single data.json
+           and writes it with file_put_contents, so a second call on the SAME subcontext
+           overwrites the first rather than merging: any user holding both a rule row and a
+           condition row got an export containing only the conditions, with the rule names
+           silently gone and no error anywhere. */
+        if (count($rules) > 0 || count($conditions) > 0) {
             $context = \context_system::instance();
             $contextpath = [get_string('pluginname', 'tool_dynamic_cohorts')];
 
-            writer::with_context($context)->export_data($contextpath, (object) ['conditions' => $conditions]);
+            writer::with_context($context)->export_data($contextpath, (object) [
+                'rules' => $rules,
+                'conditions' => $conditions,
+            ]);
         }
     }
 

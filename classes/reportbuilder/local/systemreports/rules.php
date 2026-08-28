@@ -27,7 +27,6 @@ use lang_string;
 use moodle_url;
 use tool_dynamic_cohorts\rule;
 use pix_icon;
-use html_writer;
 use tool_dynamic_cohorts\rule_manager;
 
 /**
@@ -72,10 +71,8 @@ class rules extends system_report {
             ->add_callback(static function ($id): string {
                 global $OUTPUT;
 
-                $url = new moodle_url('/admin/tool/dynamic_cohorts/index.php');
                 return $OUTPUT->render_from_template('tool_dynamic_cohorts/matching_users', [
                     'ruleid' => $id,
-                    'url' => $url->out(),
                 ]);
             });
 
@@ -91,13 +88,21 @@ class rules extends system_report {
             ->set_is_sortable(false)
             ->add_fields("{$rulealias}.id, {$rulealias}.operator")
             ->add_callback(static function ($id, $row): string {
+                global $OUTPUT;
+
                 $rule = new rule(0, $row);
                 $conditions = count($rule->get_condition_records());
 
                 if ($conditions > 0) {
-                    $conditions = html_writer::tag('span', $conditions, [
-                        'class' => 'tool-dynamic-cohorts-condition-view',
-                        'data-ruleid' => $rule->get('id'),
+                    /* Rendered from a template, not assembled with html_writer, per the
+                       fleet's zero-html_writer rule — and the matchingusers column three
+                       above already does exactly this. The template makes it a <button>:
+                       this opens the conditions modal (manage_rules.js
+                       initRuleConditionsModals), and the <span> it used to be was
+                       unreachable by keyboard and announced as nothing. */
+                    $conditions = $OUTPUT->render_from_template('tool_dynamic_cohorts/condition_count', [
+                        'ruleid' => $rule->get('id'),
+                        'count' => $conditions,
                     ]);
                 }
                 return  get_string('conditionstext', 'tool_dynamic_cohorts', (object)[

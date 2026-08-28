@@ -20,7 +20,7 @@ use completion_info;
 use tool_dynamic_cohorts\condition_base;
 use tool_dynamic_cohorts\condition_sql;
 
-defined('MOODLE_INTERNAL') || die;
+defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->libdir . '/completionlib.php');
 
@@ -144,7 +144,13 @@ class course_completed extends condition_base {
         global $DB;
 
         $coursename = $DB->get_field('course', 'fullname', ['id' => $this->get_courseid_value()]);
-        $coursename = format_string($coursename, true, ['context' => \context_system::instance(), 'escape' => false]);
+        /* No 'escape' => false here: the description lands in a Mustache TRIPLE stash
+           ({{{description}}} in templates/conditions.mustache), which renders raw, so it
+           needs the ESCAPED spelling. With escape off, format_string returns bare
+           strip_tags() output — a name containing "&" reaches the page as the start of an
+           entity, and with formatstringstriptags off it carries purifier-permitted markup
+           straight into the table. */
+        $coursename = format_string($coursename, true, ['context' => \context_system::instance()]);
 
         $operatorvalue = $this->get_operator_value();
 
@@ -192,11 +198,21 @@ class course_completed extends condition_base {
             $params = [];
 
             $completiontable = condition_sql::generate_table_alias();
-            $join = "JOIN {course_completions} $completiontable ON ($completiontable.userid = u.id)";
 
             $courseid = $this->get_courseid_value();
             $courseidparam = condition_sql::generate_param_alias();
             $params[$courseidparam] = $courseid;
+
+            /* LEFT JOIN with the course predicate in the ON clause, matching the shape
+               course_not_completed already uses. condition_manager::build_sql_data()
+               concatenates every condition's join unconditionally and combines only the
+               WHERE fragments with the rule's operator, so an INNER JOIN here filtered the
+               whole result set no matter what: under operator OR, a user matching some
+               other condition was still dropped for having no {course_completions} row at
+               all. Every other condition in the plugin uses LEFT JOIN for exactly this
+               reason. */
+            $join = "LEFT JOIN {course_completions} $completiontable
+                            ON ($completiontable.userid = u.id AND $completiontable.course = :$courseidparam)";
 
             $timecompleted = $this->get_timecompleted_value();
             $timecompletedparam = condition_sql::generate_param_alias();
@@ -205,12 +221,10 @@ class course_completed extends condition_base {
 
             if ($operator != self::OPERATOR_ANY && $timecompleted > 0) {
                 $operator = $operator == self::OPERATOR_BEFORE ? '<' : '>';
-                $where = "$completiontable.course = :$courseidparam
-                          AND $completiontable.timecompleted $operator :$timecompletedparam";
+                $where = "$completiontable.timecompleted $operator :$timecompletedparam";
                 $params[$timecompletedparam] = $timecompleted;
             } else {
-                $where = "$completiontable.course = :$courseidparam
-                          AND $completiontable.timecompleted IS NOT NULL";
+                $where = "$completiontable.timecompleted IS NOT NULL";
             }
 
             $sql = new condition_sql($join, $where, $params);

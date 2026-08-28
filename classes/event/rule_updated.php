@@ -18,18 +18,18 @@ namespace tool_dynamic_cohorts\event;
 
 use core\event\base;
 
- /**
-  * Event triggered when a rule updated.
-  *
-  * @property-read array $other {
-  *      Extra information about event.
-  *      - string ruleid: updated rule id.
-  * }
-  *
-  * @package     tool_dynamic_cohorts
-  * @copyright   2024 Catalyst IT
-  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
-  */
+/**
+ * Event triggered when a rule updated.
+ *
+ * @property-read array $other {
+ *      Extra information about event.
+ *      - string ruleid: updated rule id.
+ * }
+ *
+ * @package     tool_dynamic_cohorts
+ * @copyright   2024 Catalyst IT
+ * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
 class rule_updated extends base {
     /**
      * Initialise the rule data.

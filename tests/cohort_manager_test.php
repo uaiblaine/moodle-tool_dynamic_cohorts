@@ -16,15 +16,16 @@
 
 namespace tool_dynamic_cohorts;
 
+use PHPUnit\Framework\Attributes\CoversClass;
+
 /**
  * Tests for cohort manager class.
  *
  * @package     tool_dynamic_cohorts
  * @copyright   2024 Catalyst IT
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- *
- * @covers     \tool_dynamic_cohorts\cohort_manager
  */
+#[CoversClass(\tool_dynamic_cohorts\cohort_manager::class)]
 final class cohort_manager_test extends \advanced_testcase {
     /**
      * Test getting available cohorts.

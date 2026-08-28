@@ -17,6 +17,8 @@
 namespace tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition;
 
 use tool_dynamic_cohorts\condition_base;
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * Unit tests for user profile condition class.
@@ -24,9 +26,8 @@ use tool_dynamic_cohorts\condition_base;
  * @package     tool_dynamic_cohorts
  * @copyright   2024 Catalyst IT
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- *
- * @covers     \tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition\user_custom_profile
  */
+#[CoversClass(\tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition\user_custom_profile::class)]
 final class user_custom_profile_test extends \advanced_testcase {
     /**
      * Get condition instance for testing.
@@ -163,11 +164,11 @@ final class user_custom_profile_test extends \advanced_testcase {
     /**
      * Test getting config description.
      *
-     * @dataProvider config_description_data_provider
      * @param int $operator
      * @param string $expected
      * @param bool $shouldincludemissing
      */
+    #[DataProvider('config_description_data_provider')]
     public function test_config_description(int $operator, string $expected, bool $shouldincludemissing): void {
         $this->resetAfterTest();
 
@@ -361,7 +362,10 @@ final class user_custom_profile_test extends \advanced_testcase {
         $higherdate = 1205280000 + 86400;
 
         $userbeforethreshold = $this->getDataGenerator()->create_user(['username' => 'userdatebeforethreshold']);
-        profile_save_data((object) ['id' => $userbeforethreshold->id, 'profile_field_' . $textfield->shortname => 'User 1 Field 1']);
+        profile_save_data((object) [
+            'id' => $userbeforethreshold->id,
+            'profile_field_' . $textfield->shortname => 'User 1 Field 1',
+        ]);
         profile_save_data((object) ['id' => $userbeforethreshold->id, 'profile_field_' . $datefield->shortname => $lowerdate]);
 
         $userafterthreshold = $this->getDataGenerator()->create_user(['username' => 'userdateafterthreshold']);

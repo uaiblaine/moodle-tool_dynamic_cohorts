@@ -32,19 +32,36 @@ require_once($CFG->libdir . '/adminlib.php');
 
 admin_externalpage_setup('tool_dynamic_cohorts_rules');
 
+/* The "add a rule" control opens a modal (amd/src/manage_rules.js initRuleAdd), so its
+   href is only the no-JS fallback. It used to point at edit.php, which upstream deleted
+   in 94e7a8e when the form moved into the modal — so the fallback was a 404. Point it at
+   this page, which is what every report builder action in
+   reportbuilder\local\systemreports\rules::add_actions() already does. */
 $manageurl = new moodle_url('/admin/tool/dynamic_cohorts/index.php');
-$editurl = new moodle_url('/admin/tool/dynamic_cohorts/edit.php');
+
+/* Collect both conditions before emitting, rather than breaking out of the loop on the
+   first hit. The original broke on whichever it met first, so a site with broken rules
+   never saw the realtime warning at all — and the get_config() call sat inside the loop,
+   re-reading the setting once per rule. */
+$globalrealtime = get_config('tool_dynamic_cohorts', 'realtime');
+$hasbroken = false;
+$hasrealtime = false;
 
 foreach (rule::get_records() as $rule) {
-    if ($rule->is_broken()) {
-        notification::warning(get_string('brokenruleswarning', 'tool_dynamic_cohorts'));
-        break;
-    }
+    $hasbroken = $hasbroken || $rule->is_broken();
+    $hasrealtime = $hasrealtime || ($rule->is_realtime() && !$globalrealtime);
 
-    if ($rule->is_realtime() && !get_config('tool_dynamic_cohorts', 'realtime')) {
-        notification::warning(get_string('realtimedisabledglobally', 'tool_dynamic_cohorts'));
+    if ($hasbroken && $hasrealtime) {
         break;
     }
+}
+
+if ($hasbroken) {
+    notification::warning(get_string('brokenruleswarning', 'tool_dynamic_cohorts'));
+}
+
+if ($hasrealtime) {
+    notification::warning(get_string('realtimedisabledglobally', 'tool_dynamic_cohorts'));
 }
 
 $report = system_report_factory::create(rules::class, context_system::instance(), 'tool_dynamic_cohorts');
@@ -54,7 +71,7 @@ $PAGE->requires->js_call_amd('tool_dynamic_cohorts/manage_rules', 'init');
 echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('managerules', 'tool_dynamic_cohorts'));
 echo $OUTPUT->render_from_template('tool_dynamic_cohorts/button', [
-    'url' => $editurl->out(),
+    'url' => $manageurl->out(),
     'text' => get_string('addrule', 'tool_dynamic_cohorts'),
 ]);
 echo $report->output();

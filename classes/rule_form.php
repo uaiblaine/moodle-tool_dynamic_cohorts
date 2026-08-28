@@ -83,7 +83,7 @@ class rule_form extends dynamic_form {
         // A flag to indicate whether the conditions were updated or not.
         $mform->addElement('hidden', 'isconditionschanged', 0, ['id' => 'id_isconditionschanged']);
         $mform->setType('isconditionschanged', PARAM_BOOL);
-        $mform->setDefault('isstepschanged', 0);
+        $mform->setDefault('isconditionschanged', 0);
 
         $conditions = ['' => get_string('choosedots')];
         foreach (condition_manager::get_all_conditions() as $class => $condition) {
@@ -176,7 +176,12 @@ class rule_form extends dynamic_form {
         $rule = $this->get_rule();
 
         if (!empty($rule->get('cohortid'))) {
-            return $DB->get_record('cohort', ['id' => $rule->get('cohortid')]);
+            /* ?: null because get_record() returns FALSE, not null, for a missing row —
+               and the return type here is ?stdClass, so the bool raised a TypeError. A rule
+               CAN outlive its cohort (rule_manager::process_rule() has its own guard for
+               exactly that), and the fatal landed on the edit modal, taking away the one
+               screen an admin could use to repoint the rule at a live cohort. */
+            return $DB->get_record('cohort', ['id' => $rule->get('cohortid')]) ?: null;
         } else {
             return null;
         }

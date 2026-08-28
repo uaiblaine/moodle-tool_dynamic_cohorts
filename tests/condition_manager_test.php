@@ -21,14 +21,15 @@ use tool_dynamic_cohorts\event\condition_created;
 use tool_dynamic_cohorts\event\condition_deleted;
 use tool_dynamic_cohorts\event\condition_updated;
 use tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition\user_profile;
+use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
  * Tests for condition manager class.
  * @package     tool_dynamic_cohorts
  * @copyright   2024 Catalyst IT
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @covers     \tool_dynamic_cohorts\condition_manager
  */
+#[CoversClass(\tool_dynamic_cohorts\condition_manager::class)]
 final class condition_manager_test extends \advanced_testcase {
     /**
      * Test all conditions.

@@ -26,6 +26,14 @@ defined('MOODLE_INTERNAL') || die();
 
 
 $definitions = [
+    /* 'simpledata' is a deliberate deviation from its literal contract on these two, which
+       hold arrays of core\persistent objects rather than scalars. Dropping it was tried and
+       reverted: it makes static acceleration clone on every get, which lands on the hot path
+       of the wildcard observer in db/events.php, and it fixes no live defect — the only
+       mutation of a cached rule is mark_broken(), which writes through to the database in
+       the same call, so the shared reference and the stored row never disagree. Two tests
+       (rule_manager_test::test_get_rules_with_condition, rule_test::test_condition_records_get_cached)
+       assert the identity semantics this flag gives. */
     'rulesconditions' => [
         'mode' => cache_store::MODE_APPLICATION,
         'simpledata' => true,

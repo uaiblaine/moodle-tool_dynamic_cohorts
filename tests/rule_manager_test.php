@@ -19,13 +19,14 @@ namespace tool_dynamic_cohorts;
 use cache;
 use core\event\cohort_member_removed;
 use core\event\cohort_member_added;
-use moodle_url;
 use moodle_exception;
 use tool_dynamic_cohorts\event\rule_created;
 use tool_dynamic_cohorts\event\rule_deleted;
 use tool_dynamic_cohorts\event\rule_updated;
 use tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition\cohort_membership;
 use tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition\user_profile;
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 
 /**
@@ -34,9 +35,8 @@ use tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition\user_profile;
  * @package     tool_dynamic_cohorts
  * @copyright   2024 Catalyst IT
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- *
- * @covers     \tool_dynamic_cohorts\rule_manager
  */
+#[CoversClass(\tool_dynamic_cohorts\rule_manager::class)]
 final class rule_manager_test extends \advanced_testcase {
     /**
      * Get condition instance for testing.
@@ -50,40 +50,6 @@ final class rule_manager_test extends \advanced_testcase {
         $condition->set_config_data($configdata);
 
         return $condition;
-    }
-
-    /**
-     * Test building edit URL.
-     */
-    public function test_build_edit_url(): void {
-        $this->resetAfterTest();
-
-        $data = ['name' => 'Test', 'enabled' => 1, 'cohortid' => 2, 'description' => ''];
-        $rule = new rule(0, (object)$data);
-        $rule->save();
-
-        $actual = rule_manager::build_edit_url($rule);
-        $expected = new moodle_url('/admin/tool/dynamic_cohorts/edit.php', ['ruleid' => $rule->get('id')]);
-        $this->assertEquals($expected->out(), $actual->out());
-    }
-
-    /**
-     * Test delete URL.
-     */
-    public function test_build_rule_delete_url(): void {
-        $this->resetAfterTest();
-
-        $data = ['name' => 'Test', 'enabled' => 1, 'cohortid' => 2, 'description' => ''];
-        $rule = new rule(0, (object)$data);
-        $rule->save();
-
-        $actual = rule_manager::build_delete_url($rule);
-        $expected = new moodle_url('/admin/tool/dynamic_cohorts/delete.php', [
-            'ruleid' => $rule->get('id'),
-            'sesskey' => sesskey(),
-        ]);
-
-        $this->assertEquals($expected->out(), $actual->out());
     }
 
     /**
@@ -156,9 +122,9 @@ final class rule_manager_test extends \advanced_testcase {
     /**
      * Test processing rules with invalid data.
      *
-     * @dataProvider process_rule_form_with_invalid_data_provider
      * @param array $formdata Broken form data
      */
+    #[DataProvider('process_rule_form_with_invalid_data_provider')]
     public function test_process_rule_form_with_invalid_data(array $formdata): void {
         $this->expectException(moodle_exception::class);
         $this->expectExceptionMessage('Invalid rule data');
