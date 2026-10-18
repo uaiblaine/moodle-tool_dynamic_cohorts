@@ -123,10 +123,10 @@ final class observer_test extends advanced_testcase {
 
         $this->assertEquals(0, $DB->count_records('cohort_members', ['cohortid' => $this->cohort->id]));
 
-        user_update_user($user1, false);
+        \core\user::update_user($user1, false);
         $this->assertEquals(1, $DB->count_records('cohort_members', ['cohortid' => $this->cohort->id]));
 
-        user_update_user($user2, false);
+        \core\user::update_user($user2, false);
         $this->assertEquals(2, $DB->count_records('cohort_members', ['cohortid' => $this->cohort->id]));
     }
 

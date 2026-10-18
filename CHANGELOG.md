@@ -22,6 +22,8 @@ completion condition, which deletes the two conditions existing rules reference)
   each declaring only its own version in `$plugin->supported` and numbering its releases in
   that version's range (`2026100500`, `2026042000`, `2025100600`). The 5.2 and 5.1 numbers are
   below the `2026082801` this fork shipped before; the README gives the upgrade steps.
+  `observer_test` calls `\core\user::update_user()` on this branch: 5.3 deprecates
+  `user_update_user()` (MDL-82650), whose debugging notice PHPUnit counted against the run.
 - Site setting _Trigger events during bulk processing_ (`bulkprocessingevents`, off by
   default), ported from upstream catalyst#185: bulk processing then triggers
   `cohort_member_added` / `cohort_member_removed` for every row it writes or deletes, so
