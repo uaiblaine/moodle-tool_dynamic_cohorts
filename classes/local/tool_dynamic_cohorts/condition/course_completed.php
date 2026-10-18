@@ -127,6 +127,27 @@ class course_completed extends condition_base {
     }
 
     /**
+     * Gets required config data from submitted condition form data.
+     *
+     * The date selector is only hidden when the operator is "any", so the form still posts
+     * its default (today's midnight). Stored as is, that date would show up in the saved
+     * configuration of a condition that ignores it. Only a posted operator counts:
+     * course_not_completed inherits this method and its form has neither field.
+     *
+     * @param \stdClass $formdata Form data generated via $mform->get_data()
+     * @return array
+     */
+    public static function retrieve_config_data(\stdClass $formdata): array {
+        $configdata = parent::retrieve_config_data($formdata);
+
+        if (isset($configdata['operator']) && (int) $configdata['operator'] === self::OPERATOR_ANY) {
+            $configdata['timecompleted'] = 0;
+        }
+
+        return $configdata;
+    }
+
+    /**
      * Gets configured completion time.
      *
      * @return int
