@@ -115,10 +115,13 @@ amd/src/condition_form.js          the condition sub-form inside the rule modal
 
 - **Bulk processing bypasses the cohort API on purpose.** `process_rule()` writes
   `{cohort_members}` with `insert_records`/`delete_records_select` when the rule has
-  `bulkprocessing` set, which is why it is fast and why no `cohort_member_added` /
-  `cohort_member_removed` events fire. Anything downstream that depends on those events
-  (enrolment sync, notifications) will not see bulk changes. The setting's help string
-  says so; keep it saying so.
+  `bulkprocessing` set, which is why it is fast and why, by default, no
+  `cohort_member_added` / `cohort_member_removed` events fire: anything downstream that
+  depends on them (enrolment sync, notifications) does not see bulk changes. The site
+  setting `bulkprocessingevents` (upstream #185) raises them per row through
+  `rule_manager::trigger_cohort_member_event()`, built exactly as `cohort_add_member()`
+  builds it. A chunk whose batch insert failed is replayed through `cohort_add_member()`,
+  which raises its own events, so it must skip that loop; the help string says all this.
 
 - **`releasemembers` deletes rows directly too.** `cohort_manager::unmanage_cohort()`
   empties `{cohort_members}` with no events when the setting is on. Deleting a rule

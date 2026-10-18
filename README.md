@@ -124,6 +124,16 @@ To mitigate this, an option is provided to process "in bulk" instead of adding t
 2. Check the "Bulk processing" checkbox
 3. Save the rule and review it before enabling
 
+### Bulk processing and events
+By default, bulk processing does not trigger the `\core\event\cohort_member_added` and
+`\core\event\cohort_member_removed` events, because an event per membership change adds load
+on large rules. Plugins that observe those events (cohort enrolment sync among them) therefore
+do not react to bulk changes.
+
+The site setting _Trigger events during bulk processing_ (`tool_dynamic_cohorts/bulkprocessingevents`)
+triggers them for every user bulk processing adds or removes, at the cost of part of the
+performance gain.
+
 # Technical details
 
 ## Condition implementation

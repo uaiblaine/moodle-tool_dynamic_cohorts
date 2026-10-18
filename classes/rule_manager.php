@@ -17,6 +17,8 @@
 namespace tool_dynamic_cohorts;
 
 use cache;
+use core\event\cohort_member_added;
+use core\event\cohort_member_removed;
 use moodle_exception;
 use tool_dynamic_cohorts\event\matching_failed;
 use tool_dynamic_cohorts\event\rule_created;
@@ -335,7 +337,8 @@ class rule_manager {
 
         $cohortid = $rule->get('cohortid');
 
-        if (!$DB->record_exists('cohort', ['id' => $cohortid])) {
+        $cohort = $DB->get_record('cohort', ['id' => $cohortid]);
+        if (!$cohort) {
             $rule->mark_broken();
             return;
         }
@@ -354,6 +357,7 @@ class rule_manager {
         $userstodelete = array_diff_key($cohortmembers, $users);
 
         if ($rule->is_bulk_processing()) {
+            $firebulkevents = (bool) get_config('tool_dynamic_cohorts', 'bulkprocessingevents');
             $timeadded = time();
             /* $chunk, not $users: the original loop bound its variable to $users, which is
                the matching-user set this method is still holding. It happened to be
@@ -374,14 +378,25 @@ class rule_manager {
                    transactional and the pgsql driver commits in sub-batches, so part of a
                    failed chunk may already be in the table. Falling back to
                    cohort_add_member() also means the replayed rows fire the normal cohort
-                   events, which the bulk path deliberately skips. */
+                   events whatever bulkprocessingevents says, so a replayed chunk skips the
+                   event loop below; only the rows a sub-batch had already committed still
+                   need their event from here when the setting is on. */
                 try {
                     $DB->insert_records('cohort_members', $records);
                 } catch (\dml_exception $exception) {
                     foreach ($records as $record) {
                         if (!cohort_is_member($cohortid, $record->userid)) {
                             cohort_add_member($cohortid, $record->userid);
+                        } else if ($firebulkevents) {
+                            self::trigger_cohort_member_event(cohort_member_added::class, $cohort, (int) $record->userid);
                         }
+                    }
+                    continue;
+                }
+
+                if ($firebulkevents) {
+                    foreach ($records as $record) {
+                        self::trigger_cohort_member_event(cohort_member_added::class, $cohort, (int) $record->userid);
                     }
                 }
             }
@@ -392,6 +407,12 @@ class rule_manager {
                 $sql = "userid $insql AND cohortid = :cohort";
                 $inparams['cohort'] = $cohortid;
                 $DB->delete_records_select('cohort_members', $sql, $inparams);
+
+                if ($firebulkevents) {
+                    foreach ($userids as $removeduserid) {
+                        self::trigger_cohort_member_event(cohort_member_removed::class, $cohort, (int) $removeduserid);
+                    }
+                }
             }
         } else {
             foreach ($userstoadd as $user) {
@@ -402,6 +423,27 @@ class rule_manager {
                 cohort_remove_member($cohortid, $user->userid);
             }
         }
+    }
+
+    /**
+     * Triggers a cohort membership event for a row written by bulk processing.
+     *
+     * Bulk processing writes {cohort_members} directly, so it has to raise the event
+     * cohort_add_member() / cohort_remove_member() would have raised. The event is built
+     * exactly as those functions build it; keep the two in step.
+     *
+     * @param string $eventclass cohort_member_added::class or cohort_member_removed::class.
+     * @param \stdClass $cohort The cohort record.
+     * @param int $userid The member added or removed.
+     */
+    private static function trigger_cohort_member_event(string $eventclass, \stdClass $cohort, int $userid): void {
+        $event = $eventclass::create([
+            'context' => \core\context::instance_by_id($cohort->contextid),
+            'objectid' => $cohort->id,
+            'relateduserid' => $userid,
+        ]);
+        $event->add_record_snapshot('cohort', $cohort);
+        $event->trigger();
     }
 
     /**

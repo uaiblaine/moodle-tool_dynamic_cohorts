@@ -838,6 +838,83 @@ final class rule_manager_test extends \advanced_testcase {
         $this->assertTrue($DB->record_exists('cohort_members', ['cohortid' => $cohort2->id, 'userid' => $user4->id]));
     }
 
+
+    /**
+     * Test that bulk processing triggers cohort member events when bulkprocessingevents is on.
+     *
+     * test_rule_processing_with_bulk_processing_enabled() is the control: the same rule with
+     * the setting at its default triggers none.
+     */
+    public function test_rule_processing_with_bulk_processing_and_bulk_events_enabled(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+
+        set_config('bulkprocessingevents', 1, 'tool_dynamic_cohorts');
+
+        $user1 = $this->getDataGenerator()->create_user(['username' => 'user1']);
+        $user2 = $this->getDataGenerator()->create_user(['username' => 'user2']);
+
+        $cohort1 = $this->getDataGenerator()->create_cohort();
+        $cohort2 = $this->getDataGenerator()->create_cohort();
+
+        cohort_add_member($cohort1->id, $user1->id);
+        cohort_add_member($cohort1->id, $user2->id);
+
+        $rule = new rule(0, (object)['name' => 'Test rule 1', 'cohortid' => $cohort2->id, 'bulkprocessing' => 1, 'enabled' => 1]);
+        $rule->save();
+
+        $condition = cohort_membership::get_instance(0, (object)['ruleid' => $rule->get('id'), 'sortorder' => 0]);
+        $condition->set_config_data([
+            'cohort_membership_operator' => cohort_membership::OPERATOR_IS_MEMBER_OF,
+            'cohort_membership_value' => [$cohort1->id],
+        ]);
+        $condition->get_record()->save();
+
+        $eventsink = $this->redirectEvents();
+
+        rule_manager::process_rule($rule);
+
+        $this->assertTrue($DB->record_exists('cohort_members', ['cohortid' => $cohort2->id, 'userid' => $user1->id]));
+        $this->assertTrue($DB->record_exists('cohort_members', ['cohortid' => $cohort2->id, 'userid' => $user2->id]));
+
+        $addedevents = array_values(array_filter($eventsink->get_events(), function ($event) {
+            return $event instanceof cohort_member_added;
+        }));
+        $this->assertCount(2, $addedevents);
+        $relateduserids = array_map(fn($event) => (int) $event->relateduserid, $addedevents);
+        sort($relateduserids);
+        $this->assertSame([(int) $user1->id, (int) $user2->id], $relateduserids);
+        foreach ($addedevents as $event) {
+            $this->assertEquals($cohort2->id, $event->objectid);
+            $this->assertEquals(\core\context\system::instance()->id, $event->contextid);
+        }
+
+        $eventsink->clear();
+
+        // Now let both users be removed from cohort2.
+        $condition->set_config_data([
+            'cohort_membership_operator' => cohort_membership::OPERATOR_IS_NOT_MEMBER_OF,
+            'cohort_membership_value' => [$cohort1->id],
+        ]);
+        $condition->get_record()->save();
+
+        rule_manager::process_rule($rule);
+
+        $this->assertFalse($DB->record_exists('cohort_members', ['cohortid' => $cohort2->id, 'userid' => $user1->id]));
+        $this->assertFalse($DB->record_exists('cohort_members', ['cohortid' => $cohort2->id, 'userid' => $user2->id]));
+
+        $removedevents = array_values(array_filter($eventsink->get_events(), function ($event) {
+            return $event instanceof cohort_member_removed;
+        }));
+        $this->assertCount(2, $removedevents);
+        $relateduserids = array_map(fn($event) => (int) $event->relateduserid, $removedevents);
+        sort($relateduserids);
+        $this->assertSame([(int) $user1->id, (int) $user2->id], $relateduserids);
+        foreach ($removedevents as $event) {
+            $this->assertEquals($cohort2->id, $event->objectid);
+        }
+    }
     /**
      * Test getting rules with condition.
      */

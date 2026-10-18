@@ -327,4 +327,77 @@ final class course_completed_test extends \advanced_testcase {
     public function test_get_events(): void {
         $this->assertEquals([], $this->get_condition()->get_events());
     }
+
+    /**
+     * Test that retrieve_config_data drops the hidden completion date when the operator is "any".
+     */
+    public function test_retrieving_configdata_resets_timecompleted_for_operator_any(): void {
+        $formdata = (object)[
+            'courseid' => 5,
+            'operator' => course_completed::OPERATOR_ANY,
+            'timecompleted' => 1778644800,
+            'ruleid' => 1,
+            'sortorder' => 0,
+        ];
+
+        $actual = $this->get_condition()::retrieve_config_data($formdata);
+
+        $this->assertSame(0, $actual['timecompleted']);
+        $this->assertSame(course_completed::OPERATOR_ANY, $actual['operator']);
+        $this->assertSame(5, $actual['courseid']);
+    }
+
+    /**
+     * Test that retrieve_config_data keeps the completion date for the dated operators.
+     */
+    public function test_retrieving_configdata_preserves_timecompleted_for_dated_operators(): void {
+        foreach ([course_completed::OPERATOR_BEFORE, course_completed::OPERATOR_AFTER] as $operator) {
+            $formdata = (object)[
+                'courseid' => 5,
+                'operator' => $operator,
+                'timecompleted' => 1778644800,
+                'ruleid' => 1,
+                'sortorder' => 0,
+            ];
+
+            $actual = $this->get_condition()::retrieve_config_data($formdata);
+
+            $this->assertSame(1778644800, $actual['timecompleted']);
+        }
+    }
+
+    /**
+     * Test that the "any" operator matches every completion whatever date is stored.
+     *
+     * Conditions saved before retrieve_config_data() reset the date still carry one.
+     */
+    public function test_get_sql_operator_any_ignores_a_stored_timecompleted(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+
+        $now = time();
+        $course = $this->getDataGenerator()->create_course(['enablecompletion' => 1]);
+        $user1 = $this->getDataGenerator()->create_user();
+        $user2 = $this->getDataGenerator()->create_user();
+        $this->getDataGenerator()->enrol_user($user1->id, $course->id, 'student');
+        $this->getDataGenerator()->enrol_user($user2->id, $course->id, 'student');
+
+        (new \completion_completion(['userid' => $user1->id, 'course' => $course->id]))->mark_complete($now - WEEKSECS);
+        (new \completion_completion(['userid' => $user2->id, 'course' => $course->id]))->mark_complete($now + WEEKSECS);
+
+        $condition = $this->get_condition([
+            'courseid' => $course->id,
+            'operator' => course_completed::OPERATOR_ANY,
+            'timecompleted' => $now,
+        ]);
+
+        $result = $condition->get_sql();
+        $sql = "SELECT u.id FROM {user} u {$result->get_join()} WHERE {$result->get_where()}";
+        $actual = $DB->get_records_sql($sql, $result->get_params());
+
+        $this->assertCount(2, $actual);
+        $this->assertArrayHasKey($user1->id, $actual);
+        $this->assertArrayHasKey($user2->id, $actual);
+    }
 }
