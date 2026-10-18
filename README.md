@@ -1,4 +1,4 @@
-<a href="https://github.com/uaiblaine/moodle-tool_dynamic_cohorts/actions/workflows/ci.yml?query=branch%3AMOODLE_501_STABLE">
+<a href="https://github.com/uaiblaine/moodle-tool_dynamic_cohorts/actions/workflows/ci.yml?query=branch%3Amain">
 <img src="https://github.com/uaiblaine/moodle-tool_dynamic_cohorts/workflows/ci/badge.svg">
 </a>
 
@@ -11,13 +11,30 @@ Dynamic cohorts plugin allows dynamically add and remove users from cohorts base
 This is a fork of [catalyst/moodle-tool_dynamic_cohorts](https://github.com/catalyst/moodle-tool_dynamic_cohorts),
 maintained against the Moodle versions this site runs.
 
-| Moodle version | Branch              |
-|----------------|---------------------|
-| Moodle 5.1     | `MOODLE_501_STABLE` |
-| Moodle 5.2     | `MOODLE_501_STABLE` |
+| Moodle version | Branch                                |
+|----------------|---------------------------------------|
+| Moodle 5.3     | `main` (same commit as `MOODLE_503_STABLE`) |
+| Moodle 5.2     | `MOODLE_502_STABLE`                   |
+| Moodle 5.1     | `MOODLE_501_STABLE`                   |
 
-`$plugin->supported = [501, 502]`, so the plugin refuses to install outside that
-range. For Moodle 4.1 - 4.5, use the corresponding branch of the upstream
+Each branch declares only its own Moodle version in `$plugin->supported`, so a branch
+refuses to install on any other version.
+
+**Upgrading from the single-branch fork** (`$plugin->version = 2026082801`, Moodle 5.1 and
+5.2 only): the 5.2 and 5.1 branches now number their releases in their own Moodle version's
+range, which is below that number, and Moodle refuses a lower number as a downgrade. Replace
+the plugin files first, then set the stored version just below the branch's first release and
+upgrade:
+
+| Branch              | `--set=`     |
+|---------------------|--------------|
+| `MOODLE_502_STABLE` | `2026041999` |
+| `MOODLE_501_STABLE` | `2025100599` |
+
+    php admin/cli/cfg.php --component=tool_dynamic_cohorts --name=version --set=<value above>
+    php admin/cli/upgrade.php
+
+For Moodle 4.1 - 4.5, use the corresponding branch of the upstream
 repository — this fork does not carry them.
 
 ## Installing via uploaded ZIP file ##
@@ -171,7 +188,7 @@ Task processing is orchestrated by a simple mechanism:
 
 # Requirements
 
-* Moodle 5.1 or 5.2.
+* Moodle 5.3 on `main`; Moodle 5.2 and 5.1 on their own branches.
 * At least one manually created cohort that no other plugin manages.
 
 # Capabilities

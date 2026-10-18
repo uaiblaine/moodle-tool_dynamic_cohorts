@@ -17,6 +17,11 @@ completion condition, which deletes the two conditions existing rules reference)
 
 ### Added
 
+- Moodle 5.3 support, in the fleet's branch-per-version layout: `main` (same commit as
+  `MOODLE_503_STABLE`) for 5.3, `MOODLE_502_STABLE` for 5.2 and `MOODLE_501_STABLE` for 5.1,
+  each declaring only its own version in `$plugin->supported` and numbering its releases in
+  that version's range (`2026100500`, `2026042000`, `2025100600`). The 5.2 and 5.1 numbers are
+  below the `2026082801` this fork shipped before; the README gives the upgrade steps.
 - Site setting _Trigger events during bulk processing_ (`bulkprocessingevents`, off by
   default), ported from upstream catalyst#185: bulk processing then triggers
   `cohort_member_added` / `cohort_member_removed` for every row it writes or deletes, so
