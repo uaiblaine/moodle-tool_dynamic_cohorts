@@ -10,42 +10,35 @@ name: ci
 # an ordinary fork is protected, so a push ran NOTHING and still reported success —
 # a green tick on this repo was evidence of nothing at all.
 #
-# CI is not the only gate: the plugin is mounted on the local m501/m502 stacks
-# (moodle-dev/plugins.conf), so run `mdl ci moodle-tool_dynamic_cohorts --matrix`
-# before pushing.
+# CI is not the only gate: each branch is mounted on its own local stacks
+# (moodle-dev/plugins.conf: main on m503/m503b, MOODLE_502_STABLE on m502/m502b,
+# MOODLE_501_STABLE on m501), so run `mdl ci <that checkout> --matrix` before pushing.
 on:
   push:
     # Filtered to the merge targets. Without this, a push to a feature branch
     # ran the whole pipeline AND the pull_request event ran it again on the same
     # commit - double, for no extra information.
     branches:
+      - main
       - 'MOODLE_*_STABLE'
   pull_request:
   workflow_dispatch:
 
 # Supersede a run when new commits arrive on the same pull request: pushing
 # three fixes in a row otherwise leaves three full pipelines running to the end.
-# Never on a MOODLE_*_STABLE branch - each merge there is the only run its commit will ever get, and
+# Never on main or a MOODLE_*_STABLE branch - each merge there is the only run its commit will ever get, and
 # a second merge landing quickly must not cancel the first one's verdict.
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
-  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/heads/MOODLE_') }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/heads/MOODLE_') }}
 
 jobs:
-  # One reusable-workflow call per supported Moodle branch (version.php
-  # $plugin->supported) — update these when the supported range changes, in the
-  # same commit as the version.php change. The highest branch runs the full
-  # PHP x DB matrix; older branches run one DB only. PHPUnit and Behat run on
-  # every runtime leg.
-  ci-502:
-    name: Moodle 5.02
-    uses: moodle-an-hochschulen/moodle-workflows/.github/workflows/moodle-plugin-ci.yml@main
-    with:
-      moodle-core-branch: MOODLE_502_STABLE
-
+  # Single reusable-workflow call for this branch's one Moodle version
+  # (version.php $plugin->supported). main is the 5.3 branch; this is the
+  # 5.1 branch, MOODLE_501_STABLE; each MOODLE_XX_STABLE branch names its own core.
+  # Keep each branch's own form when resolving merges and cherry-picks.
   ci-501:
     name: Moodle 5.01
     uses: moodle-an-hochschulen/moodle-workflows/.github/workflows/moodle-plugin-ci.yml@main
     with:
       moodle-core-branch: MOODLE_501_STABLE
-      one-db-only: true
