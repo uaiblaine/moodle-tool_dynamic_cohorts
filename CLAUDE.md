@@ -30,6 +30,9 @@ is `MOODLE_404_STABLE`; ours is `main`. Upstream copyright headers
 (`2024 Catalyst IT`) stay on the files they were written for — only files first authored
 here carry `2026 Anderson Blaine`. `upstream` is configured as a remote, so
 `git log upstream/MOODLE_404_STABLE` is how you check whether a defect is ours.
+Releases are this fork's own: an annotated tag `v<moodle>-r<N>` per branch (`$plugin->release`
+names it) and a GitHub release with the `git archive` zip. There is no `moodle-release.yml` on
+purpose — the moodle.org entry is Catalyst's — so never restore one from the fleet template.
 
 ## Agent orchestration budget (fleet rule, repeated here on purpose)
 
