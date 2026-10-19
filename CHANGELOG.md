@@ -7,7 +7,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This is a fork of [catalyst/moodle-tool_dynamic_cohorts](https://github.com/catalyst/moodle-tool_dynamic_cohorts).
 Entries below cover the fork only; upstream history lives in that repository.
 
-## Unreleased
+## [v5.3-r1] - 2026-10-18
+
+First release of this fork for Moodle 5.3 ($plugin->version = 2026100500). The 5.1, 5.2 and 5.3
+branches share the entries below; each carries only its own version.
 
 Synced with upstream `MOODLE_404_STABLE` at 5e01837 (catalyst#185). Upstream's open pull
 requests were reviewed on 2026-10-18: #175 is adopted below; #178 (observer tests) and #180
