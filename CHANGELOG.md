@@ -9,13 +9,30 @@ Entries below cover the fork only; upstream history lives in that repository.
 
 ## Unreleased
 
+Synced with upstream `MOODLE_404_STABLE` at 5e01837 (catalyst#185). Upstream's open pull
+requests were reviewed on 2026-10-18: #175 is adopted below; #178 (observer tests) and #180
+(eslint) were already covered by this fork; #183 (count cache invalidation), #176 (new course
+completion condition, which deletes the two conditions existing rules reference) and the
+`sql-perf` branch were not taken.
+
 ### Added
 
+- The Moodle 5.1 branch of the fleet's branch-per-version layout: `MOODLE_501_STABLE` declares only
+  Moodle 5.1 in `$plugin->supported` and numbers its releases in that version's range
+  (`2025100600` = v5.1-r1). That is below the `2026082801` this fork shipped before; the README
+  gives the version reset a site needs to upgrade. Moodle 5.3 lives on `main`.
+- Site setting _Trigger events during bulk processing_ (`bulkprocessingevents`, off by
+  default), ported from upstream catalyst#185: bulk processing then triggers
+  `cohort_member_added` / `cohort_member_removed` for every row it writes or deletes, so
+  cohort enrolment sync and other observers see bulk changes. Unlike upstream, a chunk whose
+  batch insert failed is replayed through `cohort_add_member()` (which triggers its own
+  events) and is not announced twice; rows a failed chunk had already committed still get
+  theirs.
 - `lang/pt_br` language pack, kept in lockstep with `lang/en`.
 - Behat smoke coverage: the rules page loads from site administration, and a rule can be
   created through the modal.
 - `CHANGELOG.md`, `CLAUDE.md`, `phpcs.xml`, `.gitignore`, `.moodle-plugin-ci.yml`,
-  `.phpcsignore`, `.stylelintrc.json`, `.github/PULL_REQUEST_TEMPLATE.md` and
+  `.phpcsignore`, `.github/PULL_REQUEST_TEMPLATE.md` and
   `.github/workflows/moodle-release.yml`, matching the fleet scaffolding.
 - `templates/condition_count.mustache`, so the rules table's condition-count control is
   rendered from a template rather than assembled with `html_writer`.
@@ -55,6 +72,9 @@ Entries below cover the fork only; upstream history lives in that repository.
 
 ### Fixed
 
+- `course_completed` stored the hidden completion date (today's midnight) when the operator
+  was "any" (upstream issue #174, PR #175). The SQL already ignored it, so no rule matched
+  differently; the saved configuration now carries 0.
 - **Deleting a rule never worked.** `amd/src/manage_rules.js` called the web service
   `tool_dynamic_cohorts_delete_rules` with a stray backtick inside the string literal, so
   every delete failed with an "invalid parameter" exception. The typo shipped in

@@ -10,15 +10,23 @@ membership in step with user data. A *rule* names one cohort, a logical operator
 set of *conditions*; every user matching the conditions is added to the cohort and every
 non-matching member is removed. It owns two tables, `tool_dynamic_cohorts` (rules) and
 `tool_dynamic_cohorts_c` (conditions), both `core\persistent` models, and it takes
-ownership of the cohorts it manages by stamping `{cohort}.component`. Supports Moodle
-**5.1 and 5.2** (`$plugin->requires = 2025100600`, `$plugin->supported = [501, 502]`).
-CI is the moodle-an-hochschulen reusable workflow, one job per supported branch in
-`.github/workflows/ci.yml` — **update those jobs when `supported` changes**. Mounted on
-the m501 and m502 stacks at `admin/tool/dynamic_cohorts` (see
-`~/dev/moodle-dev/plugins.conf`).
+ownership of the cohorts it manages by stamping `{cohort}.component`.
+
+**One branch per Moodle version** (fleet rule): `main` = `MOODLE_503_STABLE` (5.3,
+`supported = [503, 503]`, versions `20261005XX`), `MOODLE_502_STABLE` (5.2, `20260420XX`) and
+`MOODLE_501_STABLE` (5.1, `20251006XX`). Each branch keeps its own `version.php`, `ci.yml`
+(one MAH job naming its own core branch) and README requirements line; resolve merges and
+cherry-picks in favour of the branch's values, then bump that branch's counter. A fix lands
+on `main` first and is cherry-picked down. Checkouts: `~/dev/moodle-tool_dynamic_cohorts-503`
+(`main`, m503/m503b), `~/dev/moodle-tool_dynamic_cohorts` (`MOODLE_502_STABLE`, m502/m502b) and
+`-501` (m501), kept apart by explicit lists in `~/dev/moodle-dev/plugins.conf`.
+The 5.2 and 5.1 branches number below the date-numbered `2026082801` the fork shipped
+before the split, so a site upgrading from it needs `admin/cli/cfg.php
+--component=tool_dynamic_cohorts --name=version --set=<branch requires - 1>` AFTER the new
+files are in place (README, "Upgrading from the single-branch fork").
 
 **This is a fork of `catalyst/moodle-tool_dynamic_cohorts`.** Upstream's default branch
-is `MOODLE_404_STABLE`; ours is `MOODLE_501_STABLE`. Upstream copyright headers
+is `MOODLE_404_STABLE`; ours is `main`. Upstream copyright headers
 (`2024 Catalyst IT`) stay on the files they were written for — only files first authored
 here carry `2026 Anderson Blaine`. `upstream` is configured as a remote, so
 `git log upstream/MOODLE_404_STABLE` is how you check whether a defect is ours.
@@ -53,11 +61,12 @@ definition, and none runs on the session model.
 ## Commands
 
 ```sh
-mdl ci moodle-tool_dynamic_cohorts --matrix   # every leg GitHub runs, before any push
-mdl phpunit m502 tool_dynamic_cohorts         # targeted tests
-mdl behat m502 @tool_dynamic_cohorts          # Behat smoke tests
-mdl grunt m502 admin/tool/dynamic_cohorts     # rebuild amd/build (commit with src)
-mdl purge m502                                # after PHP changes that affect output
+mdl ci moodle-tool_dynamic_cohorts-503 --matrix   # main (5.3): every leg GitHub runs, before any push
+mdl ci moodle-tool_dynamic_cohorts --matrix       # the same for 5.2 (-501 for 5.1)
+mdl phpunit m503 tool_dynamic_cohorts         # targeted tests
+mdl behat m503 @tool_dynamic_cohorts          # Behat smoke tests
+mdl grunt m503 admin/tool/dynamic_cohorts     # rebuild amd/build (commit with src)
+mdl purge m503                                # after PHP changes that affect output
 ```
 
 ## Code layout
@@ -115,10 +124,13 @@ amd/src/condition_form.js          the condition sub-form inside the rule modal
 
 - **Bulk processing bypasses the cohort API on purpose.** `process_rule()` writes
   `{cohort_members}` with `insert_records`/`delete_records_select` when the rule has
-  `bulkprocessing` set, which is why it is fast and why no `cohort_member_added` /
-  `cohort_member_removed` events fire. Anything downstream that depends on those events
-  (enrolment sync, notifications) will not see bulk changes. The setting's help string
-  says so; keep it saying so.
+  `bulkprocessing` set, which is why it is fast and why, by default, no
+  `cohort_member_added` / `cohort_member_removed` events fire: anything downstream that
+  depends on them (enrolment sync, notifications) does not see bulk changes. The site
+  setting `bulkprocessingevents` (upstream #185) raises them per row through
+  `rule_manager::trigger_cohort_member_event()`, built exactly as `cohort_add_member()`
+  builds it. A chunk whose batch insert failed is replayed through `cohort_add_member()`,
+  which raises its own events, so it must skip that loop; the help string says all this.
 
 - **`releasemembers` deletes rows directly too.** `cohort_manager::unmanage_cohort()`
   empties `{cohort_members}` with no events when the setting is on. Deleting a rule
