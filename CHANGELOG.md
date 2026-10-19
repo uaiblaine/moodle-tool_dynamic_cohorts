@@ -32,14 +32,16 @@ completion condition, which deletes the two conditions existing rules reference)
 - Behat smoke coverage: the rules page loads from site administration, and a rule can be
   created through the modal.
 - `CHANGELOG.md`, `CLAUDE.md`, `phpcs.xml`, `.gitignore`, `.moodle-plugin-ci.yml`,
-  `.phpcsignore`, `.github/PULL_REQUEST_TEMPLATE.md` and
-  `.github/workflows/moodle-release.yml`, matching the fleet scaffolding.
+  `.phpcsignore` and `.github/PULL_REQUEST_TEMPLATE.md`, matching the fleet scaffolding.
 - `templates/condition_count.mustache`, so the rules table's condition-count control is
   rendered from a template rather than assembled with `html_writer`.
 - `task_process_rule` and `missingtag` strings (both language packs).
 
 ### Changed
 
+- No `moodle-release.yml` workflow: `tool_dynamic_cohorts` on moodle.org belongs to Catalyst, so
+  this fork never publishes there. It tags its own releases instead (`v5.3-r1`, `v5.2-r1`,
+  `v5.1-r1`, ...), each a GitHub release carrying a `git archive` zip of the tagged commit.
 - Target Moodle 5.1 and 5.2 (`$plugin->supported = [501, 502]`,
   `$plugin->requires = 2025100600`). Support for 4.4/4.5 is dropped.
 - CI moved from the Catalyst reusable workflow to the moodle-an-hochschulen one, with a
