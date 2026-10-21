@@ -18,6 +18,7 @@ namespace tool_dynamic_cohorts;
 
 use core\event\base;
 use core_component;
+use moodle_exception;
 use tool_dynamic_cohorts\event\condition_created;
 use tool_dynamic_cohorts\event\condition_deleted;
 use tool_dynamic_cohorts\event\condition_updated;
@@ -87,11 +88,12 @@ class condition_manager {
      *
      * @param rule $rule Rule instance/
      * @param \stdClass $formdata Data received from rule_form.
+     * @throws moodle_exception When a submitted condition is refused; nothing is written then.
      */
     public static function process_form(rule $rule, \stdClass $formdata): void {
         if (!empty($formdata->isconditionschanged)) {
-            $submittedconditions = self::process_condition_json($formdata->conditionjson);
             $oldconditions = $rule->get_condition_records();
+            $submittedconditions = self::process_condition_json($formdata->conditionjson, $oldconditions);
 
             $toupdate = [];
             foreach ($submittedconditions as $condition) {
@@ -126,13 +128,18 @@ class condition_manager {
     }
 
     /**
-     * Take JSON from the form and return a list of condition persistents.
+     * Take JSON from the form and return a list of validated condition persistents.
+     *
+     * The JSON comes from a hidden field of the rule form, so the client controls all of it:
+     * every id and every configdata is checked here, before process_form() writes anything.
      *
      * @param string $formjson Conditions JSON string from the rule form.
+     * @param array $ruleconditions The rule's stored condition persistents, keyed by id.
      *
      * @return condition[]
+     * @throws moodle_exception When a condition belongs to another rule or fails validation.
      */
-    private static function process_condition_json(string $formjson): array {
+    private static function process_condition_json(string $formjson, array $ruleconditions): array {
         // Get only required fields for condition persistent.
         $requiredconditionfield = array_diff(
             array_keys(condition::properties_definition()),
@@ -151,10 +158,70 @@ class condition_manager {
 
         $conditions = [];
         foreach ($submittedrecords as $submittedrecord) {
-            $conditions[] = new condition($submittedrecord['id'], (object)$submittedrecord);
+            $id = (int) ($submittedrecord['id'] ?? 0);
+
+            /* ruleid is stripped from the submitted record above, so the persistent below keeps
+               whatever ruleid the stored row has: an id taken from ANOTHER rule's condition would
+               be rewritten in place under that rule, with this rule's form as the only check. */
+            if ($id !== 0 && !array_key_exists($id, $ruleconditions)) {
+                throw new moodle_exception('Invalid rule data. Condition ' . $id . ' does not belong to this rule.');
+            }
+
+            // The persistent takes the id that was checked, not the raw one ("abc" is then new, not an update).
+            $submittedrecord['id'] = $id;
+            $condition = new condition($id, (object)$submittedrecord);
+
+            /* A stored condition sent back unchanged is the rule's recorded state, not new input.
+               Revalidating it would make a rule whose condition class was since uninstalled
+               impossible to save, where it has always been saved and marked broken instead. */
+            $stored = $ruleconditions[$id] ?? null;
+            $unchanged = $stored
+                && $stored->get('classname') === $condition->get('classname')
+                && $stored->get('configdata') === $condition->get('configdata');
+            if (!$unchanged) {
+                self::validate_submitted_condition($condition);
+            }
+
+            $conditions[] = $condition;
         }
 
         return $conditions;
+    }
+
+    /**
+     * Validate one submitted condition the way its own config form would, and then some.
+     *
+     * The condition modal validates through condition_form, but the rule form stores whatever
+     * its conditionjson field carries, so the same checks run again here. A condition that is
+     * not broken must also build its SQL without throwing: the '*' observer runs get_sql() on
+     * every event, and core does not catch an \Error (a TypeError from a getter) raised there.
+     *
+     * @param condition $condition Submitted condition, not yet saved.
+     * @throws moodle_exception When the class is unknown or the config data is invalid.
+     */
+    private static function validate_submitted_condition(condition $condition): void {
+        // Discovered class names carry no leading backslash; stored ones may (tests write them so).
+        $classname = ltrim((string) $condition->get('classname'), '\\');
+        if (!array_key_exists($classname, self::get_all_conditions(false))) {
+            throw new moodle_exception('Invalid rule data. Unknown condition: ' . $classname);
+        }
+
+        $configdata = json_decode((string) $condition->get('configdata'), true);
+        $instance = condition_base::get_instance(0, $condition->to_record());
+
+        // Config data that is not a JSON object fails config_form_validate()'s array type here too.
+        try {
+            $errors = $instance->config_form_validate($configdata);
+            if (empty($errors) && !$instance->is_broken()) {
+                $instance->get_sql();
+            }
+        } catch (\Throwable $exception) {
+            $errors = [$exception->getMessage()];
+        }
+
+        if (!empty($errors)) {
+            throw new moodle_exception('Invalid rule data. Invalid config data for condition: ' . $classname);
+        }
     }
 
     /**

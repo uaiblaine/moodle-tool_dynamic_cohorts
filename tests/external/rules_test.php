@@ -62,6 +62,49 @@ final class rules_test extends externallib_advanced_testcase {
     }
 
     /**
+     * Each rule is decided in its cohort's context: one refused rule leaves every rule in place.
+     */
+    public function test_delete_rules_checks_each_rule_in_its_cohort_context(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+        $generator = $this->getDataGenerator();
+
+        $category = $generator->create_category();
+        $categorycontext = \core\context\coursecat::instance($category->id);
+        $systemcohort = $generator->create_cohort();
+        $categorycohort = $generator->create_cohort(['contextid' => $categorycontext->id]);
+
+        $systemrule = new rule(0, (object)['name' => 'System rule', 'cohortid' => $systemcohort->id]);
+        $systemrule->save();
+        $categoryrule = new rule(0, (object)['name' => 'Category rule', 'cohortid' => $categorycohort->id]);
+        $categoryrule->save();
+        $spare = new rule(0, (object)['name' => 'Spare rule', 'cohortid' => $generator->create_cohort()->id]);
+        $spare->save();
+
+        // A site-level rule manager whose capability is prohibited in one category.
+        $user = $generator->create_user();
+        $roleid = $generator->create_role();
+        $systemcontext = \core\context\system::instance();
+        assign_capability('tool/dynamic_cohorts:manage', CAP_ALLOW, $roleid, $systemcontext->id);
+        assign_capability('tool/dynamic_cohorts:manage', CAP_PROHIBIT, $roleid, $categorycontext->id);
+        role_assign($roleid, $user->id, $systemcontext->id);
+        $this->setUser($user);
+
+        try {
+            rules::delete_rules([$systemrule->get('id'), $categoryrule->get('id')]);
+            $this->fail('A rule in a context where the capability is prohibited was deleted.');
+        } catch (\required_capability_exception $exception) {
+            $this->assertTrue($DB->record_exists(rule::TABLE, ['id' => $systemrule->get('id')]));
+            $this->assertTrue($DB->record_exists(rule::TABLE, ['id' => $categoryrule->get('id')]));
+        }
+
+        // The control: the same user may delete a rule outside that category.
+        rules::delete_rules([$spare->get('id')]);
+        $this->assertFalse($DB->record_exists(rule::TABLE, ['id' => $spare->get('id')]));
+    }
+
+    /**
      * Test exception thrown on deleting invalid rule.
      */
     public function test_exception_delete_rules_when_one_is_invalid(): void {

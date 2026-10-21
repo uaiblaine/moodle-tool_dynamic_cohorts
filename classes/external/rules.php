@@ -73,6 +73,10 @@ class rules extends external_api {
             if (empty($rule)) {
                 throw new invalid_parameter_exception('Rule does not exist. ID: ' . $ruleid);
             }
+            /* The system check above only says the caller may use this service; each rule is
+               decided in its own cohort's context, where the capability can be prohibited.
+               Checked inside this loop so one refused id leaves every rule in place. */
+            require_capability('tool/dynamic_cohorts:manage', $rule->get_context());
             $rulestodelete[] = $rule;
         }
 
