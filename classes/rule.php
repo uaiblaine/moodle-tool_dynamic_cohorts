@@ -106,6 +106,24 @@ class rule extends persistent {
     }
 
     /**
+     * The context a rule's access is decided in: its cohort's context.
+     *
+     * Read from {cohort} on every call rather than stored on the rule, because the cohort is
+     * what the rule changes and an administrator can move it. A rule whose cohort is gone falls
+     * back to the system context, so only site-level managers reach it.
+     *
+     * @return \core\context
+     */
+    public function get_context(): \core\context {
+        global $DB;
+
+        $contextid = $DB->get_field('cohort', 'contextid', ['id' => $this->get('cohortid')]);
+        $context = $contextid ? \core\context::instance_by_id((int) $contextid, IGNORE_MISSING) : false;
+
+        return $context ?: \core\context\system::instance();
+    }
+
+    /**
      * Check if this rule should process in bulk.
      * @return bool
      */
