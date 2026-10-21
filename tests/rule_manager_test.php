@@ -364,11 +364,13 @@ final class rule_manager_test extends \advanced_testcase {
         $this->assertEquals(1, $DB->count_records(rule::TABLE));
         $this->assertCount(0, $rule->get_condition_records());
 
-        // Updating the rule with 3 new conditions, but flag isconditionschanged is not set.
+        // Updating the rule with 3 new conditions, but flag isconditionschanged is not set. Each one
+        // names a course that does not exist: a real condition class, valid config, but broken.
+        $completed = 'tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition\course_completed';
         $conditionjson = json_encode([
-            ['id' => 0, 'classname' => 'class1', 'sortorder' => 0, 'configdata' => ''],
-            ['id' => 0, 'classname' => 'class2', 'sortorder' => 1, 'configdata' => ''],
-            ['id' => 0, 'classname' => 'class3', 'sortorder' => 2, 'configdata' => ''],
+            ['id' => 0, 'classname' => $completed, 'sortorder' => 0, 'configdata' => '{"courseid":999991}'],
+            ['id' => 0, 'classname' => $completed, 'sortorder' => 1, 'configdata' => '{"courseid":999992}'],
+            ['id' => 0, 'classname' => $completed, 'sortorder' => 2, 'configdata' => '{"courseid":999993}'],
         ]);
 
         $formdata = ['id' => $rule->get('id'), 'name' => 'Test', 'enabled' => 1, 'cohortid' => $cohort->id,
@@ -391,31 +393,38 @@ final class rule_manager_test extends \advanced_testcase {
         $this->assertEquals(1, $DB->count_records(rule::TABLE));
         $this->assertCount(3, $rule->get_condition_records());
 
-        // Rule should be broken as all conditions are broken (not existing class).
+        // Rule should be broken as all conditions are broken (their courses do not exist).
         $this->assertTrue($rule->is_broken());
         $this->assertFalse($rule->is_enabled());
 
-        $this->assertTrue(condition::record_exists_select('classname = ? AND ruleid = ?', ['class1', $rule->get('id')]));
-        $this->assertTrue(condition::record_exists_select('classname = ? AND ruleid = ?', ['class2', $rule->get('id')]));
-        $this->assertTrue(condition::record_exists_select('classname = ? AND ruleid = ?', ['class3', $rule->get('id')]));
+        $courseids = function (rule $rule): array {
+            $ids = [];
+            foreach (condition::get_records(['ruleid' => $rule->get('id')]) as $condition) {
+                $ids[] = json_decode($condition->get('configdata'), true)['courseid'];
+            }
+            sort($ids);
+            return $ids;
+        };
+        $this->assertSame([999991, 999992, 999993], $courseids($rule));
 
         // Updating the rule with 1 new condition, 1 deleted condition (sortorder 1) and
-        // two updated conditions (sortorder added to a class name). Expecting 1 new condition, 2 updated and 1 deleted.
+        // two updated conditions (course changed). Expecting 1 new condition, 2 updated and 1 deleted.
         $conditions = $rule->get_condition_records();
         $conditionjson = [];
 
         foreach ($conditions as $condition) {
             if ($condition->get('sortorder') != 1) {
+                $courseid = json_decode($condition->get('configdata'), true)['courseid'] + 10;
                 $conditionjson[] = [
                     'id' => $condition->get('id'),
-                    'classname' => $condition->get('classname') . $condition->get('sortorder'),
+                    'classname' => $completed,
                     'sortorder' => $condition->get('sortorder'),
-                    'configdata' => $condition->get('configdata'),
+                    'configdata' => json_encode(['courseid' => $courseid]),
                 ];
             }
         }
 
-        $conditionjson[] = ['id' => 0, 'classname' => 'class4', 'sortorder' => 2, 'configdata' => ''];
+        $conditionjson[] = ['id' => 0, 'classname' => $completed, 'sortorder' => 2, 'configdata' => '{"courseid":999994}'];
         $conditionjson = json_encode($conditionjson);
 
         $formdata = ['id' => $rule->get('id'), 'name' => 'Test', 'enabled' => 1, 'cohortid' => $cohort->id,
@@ -427,10 +436,7 @@ final class rule_manager_test extends \advanced_testcase {
         $this->assertTrue($rule->is_broken());
         $this->assertFalse($rule->is_enabled());
 
-        $this->assertTrue(condition::record_exists_select('classname = ? AND ruleid = ?', ['class10', $rule->get('id')]));
-        $this->assertFalse(condition::record_exists_select('classname = ? AND ruleid = ?', ['class2', $rule->get('id')]));
-        $this->assertTrue(condition::record_exists_select('classname = ? AND ruleid = ?', ['class32', $rule->get('id')]));
-        $this->assertTrue(condition::record_exists_select('classname = ? AND ruleid = ?', ['class4', $rule->get('id')]));
+        $this->assertSame([999994, 1000001, 1000003], $courseids($rule));
 
         $formdata = ['id' => $rule->get('id'), 'name' => 'Test', 'enabled' => 1, 'cohortid' => $cohort->id,
             'description' => '', 'conditionjson' => '', 'isconditionschanged' => true,
@@ -443,6 +449,37 @@ final class rule_manager_test extends \advanced_testcase {
         $this->assertFalse($rule->is_broken());
         // Rules are disabled by default.
         $this->assertFalse($rule->is_enabled());
+    }
+
+    /**
+     * A refused condition rolls the whole rule save back: no rule, and the cohort is not claimed.
+     */
+    public function test_process_rule_form_refused_condition_writes_nothing(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+        // Otherwise the test's own transaction is the outermost one, and rolling back the
+        // delegated transaction in process_form() is deferred until the test ends.
+        $this->preventResetByRollback();
+        $cohort = $this->getDataGenerator()->create_cohort();
+
+        $conditionjson = json_encode([
+            ['id' => 0, 'classname' => 'tool_dynamic_cohorts\not_a_condition', 'sortorder' => 0, 'configdata' => '{}'],
+        ]);
+        $formdata = ['name' => 'Test', 'cohortid' => $cohort->id, 'description' => '', 'conditionjson' => $conditionjson,
+            'isconditionschanged' => true, 'bulkprocessing' => 1, 'realtime' => 1,
+            'operator' => rule_manager::CONDITIONS_OPERATOR_AND];
+
+        try {
+            rule_manager::process_form((object)$formdata);
+            $this->fail('A rule with an unknown condition class was saved.');
+        } catch (moodle_exception $exception) {
+            $this->assertStringContainsString('Unknown condition', $exception->getMessage());
+        }
+
+        $this->assertEquals(0, $DB->count_records(rule::TABLE));
+        $this->assertEquals(0, $DB->count_records(condition::TABLE));
+        $this->assertSame('', (string) $DB->get_field('cohort', 'component', ['id' => $cohort->id]));
     }
 
     /**
