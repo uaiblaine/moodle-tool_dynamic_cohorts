@@ -7,6 +7,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This is a fork of [catalyst/moodle-tool_dynamic_cohorts](https://github.com/catalyst/moodle-tool_dynamic_cohorts).
 Entries below cover the fork only; upstream history lives in that repository.
 
+## [Unreleased]
+
+Stage S0 of the category-context plan (`docs/category-context/PLAN.md` on `main`): three defects
+that were harmless while the capability can only be granted site-wide, and that become
+privilege-boundary breaches once rules are managed per category. Fixed first, before any scoping.
+
+### Fixed
+
+- Saving a rule rewrote any condition whose id the form sent, including another rule's: the
+  submitted record has its `ruleid` stripped, so the stored row kept its own rule and was
+  updated in place. A submitted condition id must now belong to the rule being saved, and the
+  persistent is built from that checked integer id, not from the raw submitted value.
+- The rule form stored its `conditionjson` field without checking it; only the condition modal
+  validated. Each new or changed condition is now validated on save: its class must be a
+  discovered condition, its config data must pass the condition's own validation, and a
+  condition that is not broken must build its SQL without throwing (a `TypeError` there would
+  escape the `'*'` observer on every event). A stored condition sent back unchanged is not
+  revalidated, so a rule whose condition class was uninstalled can still be saved and is
+  marked broken as before. A refused condition rolls the whole save back.
+- `tool_dynamic_cohorts_delete_rules` checked the capability once, in the system context. Each
+  rule is now also checked in its cohort's context (`rule::get_context()`, the system context
+  for a rule whose cohort is gone), before anything is deleted.
+
+### Added
+
+- `mutations/gates.conf`: the mutation spec for these guards (`mdl mutate`).
+
 ## [v5.2-r1] - 2026-10-18
 
 First release of this fork for Moodle 5.2 ($plugin->version = 2026042000). The 5.1, 5.2 and 5.3
