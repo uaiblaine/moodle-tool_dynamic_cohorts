@@ -129,10 +129,16 @@ class condition_manager {
 
         if (empty($formdata->isconditionschanged)) {
             /* The conditions stay, but the rule may have moved to another cohort: a category-level
-               user cannot keep a condition that reaches outside the new cohort's category. */
+               user cannot keep a condition that reaches outside the new cohort's category, and the
+               ones kept are held to that category from now on. A refusal rolls back the writes
+               before it: the caller's transaction ({@see rule_manager::process_form()}). */
             if ($scope !== null) {
                 foreach ($rule->get_condition_records() as $condition) {
-                    self::check_condition_scope($condition, $scope);
+                    $configdata = self::check_condition_scope($condition, $scope);
+                    if ($configdata !== null && $configdata !== $condition->get('configdata')) {
+                        $condition->set('configdata', $configdata);
+                        self::update_condition($condition);
+                    }
                 }
             }
             return;
@@ -156,20 +162,29 @@ class condition_manager {
         self::delete_conditions($todelete);
 
         foreach ($toupdate as $conditiontoupdate) {
-            $olddescription = $conditiontoupdate->get('configdata');
-            $instance = condition_base::get_instance(0, $conditiontoupdate->to_record());
-            if ($instance && !$instance->is_broken()) {
-                $olddescription = $instance->get_config_description();
-            }
-
-            $conditiontoupdate->save();
-
-            self::trigger_condition_event(condition_updated::class, $conditiontoupdate, [
-                'other' => [
-                    'olddescription' => $olddescription,
-                ],
-            ]);
+            self::update_condition($conditiontoupdate);
         }
+    }
+
+    /**
+     * Save a stored condition and raise its update event.
+     *
+     * @param condition $condition The condition, with its new values set.
+     */
+    private static function update_condition(condition $condition): void {
+        $olddescription = $condition->get('configdata');
+        $instance = condition_base::get_instance(0, $condition->to_record());
+        if ($instance && !$instance->is_broken()) {
+            $olddescription = $instance->get_config_description();
+        }
+
+        $condition->save();
+
+        self::trigger_condition_event(condition_updated::class, $condition, [
+            'other' => [
+                'olddescription' => $olddescription,
+            ],
+        ]);
     }
 
     /**
@@ -228,7 +243,10 @@ class condition_manager {
                 self::validate_submitted_condition($condition, $scope);
             } else if ($scope !== null) {
                 // Unchanged is not exempt from the scope: an administrator may have written it.
-                self::check_condition_scope($condition, $scope);
+                $configdata = self::check_condition_scope($condition, $scope);
+                if ($configdata !== null) {
+                    $condition->set('configdata', $configdata);
+                }
             }
 
             $conditions[] = $condition;
@@ -306,16 +324,18 @@ class condition_manager {
      * Require a stored condition of a rule to stay within a category-level user's scope.
      *
      * A condition whose class is gone is left alone: it is broken, matches nobody, and the rule
-     * is saved and marked broken as before.
+     * is saved and marked broken as before. The condition itself is not changed; the caller
+     * writes the returned config data.
      *
      * @param condition $condition A stored condition.
      * @param \core\context $scope Category scope.
+     * @return string|null Its config data with this scope recorded, or null when its class is gone.
      * @throws moodle_exception When the condition is not available in a category or reaches outside it.
      */
-    private static function check_condition_scope(condition $condition, \core\context $scope): void {
+    private static function check_condition_scope(condition $condition, \core\context $scope): ?string {
         $instance = condition_base::get_instance(0, $condition->to_record());
         if (!$instance) {
-            return;
+            return null;
         }
 
         self::require_category_condition(ltrim((string) $condition->get('classname'), '\\'), $instance);
@@ -323,12 +343,16 @@ class condition_manager {
 
         try {
             $errors = $instance->validate_scope();
+            $instance->record_scope();
+            $configdata = json_encode($instance->get_config_data());
         } catch (\Throwable $exception) {
             $errors = [$exception->getMessage()];
         }
         if (!empty($errors)) {
             throw new moodle_exception('conditionoutofscope', 'tool_dynamic_cohorts', '', $instance->get_name());
         }
+
+        return $configdata;
     }
 
     /**

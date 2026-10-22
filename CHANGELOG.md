@@ -7,6 +7,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This is a fork of [catalyst/moodle-tool_dynamic_cohorts](https://github.com/catalyst/moodle-tool_dynamic_cohorts).
 Entries below cover the fork only; upstream history lives in that repository.
 
+## [Unreleased]
+
+### Changed
+
+- A condition written by a category-level user records the category it was written in, every
+  condition and not only the cohort field one (`scopecontextid`). Course, enrolment, role and
+  cohort membership conditions check their course, category or cohort against it again whenever
+  the rule is processed. If an administrator has since moved the course or category out, or hidden
+  the cohort, the condition is broken: the rule is marked broken and stops, keeping its members,
+  and the condition says why. A condition written site-wide records nothing and is not affected.
+  Profile-field conditions are checked on save only, since a field's visibility depends on the
+  capabilities of whoever wrote the rule. A category-level user who saves a rule, moved to
+  another cohort or not, records the rule's current category on every condition it keeps,
+  including one an administrator wrote; a refused save records nothing.
+
 ## [v5.3-r2] - 2026-10-22
 
 Second release of this fork for Moodle 5.3 ($plugin->version = 2026100503). Rules can now be managed

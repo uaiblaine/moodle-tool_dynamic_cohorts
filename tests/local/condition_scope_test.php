@@ -448,6 +448,99 @@ final class condition_scope_test extends \advanced_testcase {
     }
 
     /**
+     * Move the rule to another cohort, keeping its conditions, as rule_form would.
+     *
+     * @param int $cohortid The cohort to fill from now on.
+     */
+    private function move_rule(int $cohortid): void {
+        rule_manager::process_form((object) ['id' => $this->rule->get('id'), 'name' => 'Rule', 'cohortid' => $cohortid,
+            'description' => '', 'bulkprocessing' => 0, 'realtime' => 0,
+            'operator' => rule_manager::CONDITIONS_OPERATOR_AND, 'conditionjson' => '']);
+        $this->rule = rule::get_record(['id' => $this->rule->get('id')]);
+    }
+
+    /**
+     * The category a condition records, read from the stored row.
+     *
+     * @param int $index Position of the condition in the rule.
+     * @return int|null Context id, or null when none is recorded.
+     */
+    private function recorded_scope(int $index = 0): ?int {
+        $condition = array_values($this->rule->get_condition_records())[$index];
+        $config = json_decode($condition->get('configdata'), true);
+        return isset($config[condition_base::SCOPE_KEY]) ? (int) $config[condition_base::SCOPE_KEY] : null;
+    }
+
+    /**
+     * A rule moved to a narrower category holds its kept conditions to that category.
+     */
+    public function test_moved_rule_records_the_new_scope(): void {
+        global $CFG;
+        require_once($CFG->dirroot . '/course/lib.php');
+
+        $this->setUser($this->manager);
+        $this->rule = $this->save_with('course_completed', ['operator' => 1, 'courseid' => $this->courses['a1']->id]);
+        $this->assertSame((int) $this->contexts['a']->id, $this->recorded_scope());
+
+        $cohorta1 = $this->getDataGenerator()->create_cohort(['contextid' => $this->contexts['a1']->id]);
+        $this->move_rule((int) $cohorta1->id);
+        $this->assertSame((int) $this->contexts['a1']->id, $this->recorded_scope());
+        $this->assertFalse($this->rule->is_broken(true));
+
+        // Still in A, no longer in A1, where the rule now fills its cohort.
+        $this->setAdminUser();
+        move_courses([$this->courses['a1']->id], $this->contexts['a']->instanceid);
+        $this->assertTrue($this->rule->is_broken(true));
+    }
+
+    /**
+     * A condition an administrator wrote, sent back unchanged by a category manager, records the category.
+     */
+    public function test_unchanged_condition_records_the_scope(): void {
+        $this->setAdminUser();
+        $this->rule = $this->save_with('course_completed', ['operator' => 1, 'courseid' => $this->courses['a1']->id]);
+        $this->assertNull($this->recorded_scope());
+
+        $this->setUser($this->manager);
+        $stored = array_values($this->rule->get_condition_records())[0];
+        rule_manager::process_form((object) ['id' => $this->rule->get('id'), 'name' => 'Rule',
+            'cohortid' => $this->rule->get('cohortid'), 'description' => '', 'bulkprocessing' => 0, 'realtime' => 0,
+            'operator' => rule_manager::CONDITIONS_OPERATOR_AND, 'isconditionschanged' => true,
+            'conditionjson' => json_encode([['id' => (int) $stored->get('id'), 'classname' => $stored->get('classname'),
+                'sortorder' => 0, 'configdata' => $stored->get('configdata')]])]);
+        $this->rule = rule::get_record(['id' => $this->rule->get('id')]);
+
+        $this->assertSame((int) $this->contexts['a']->id, $this->recorded_scope());
+    }
+
+    /**
+     * A move refused over one condition records nothing on the conditions checked before it.
+     */
+    public function test_refused_move_records_nothing(): void {
+        $this->setAdminUser();
+        $condition = fn(int $courseid, int $sortorder) => ['id' => 0, 'classname' => self::NS . 'course_completed',
+            'sortorder' => $sortorder, 'configdata' => json_encode(['operator' => 1, 'courseid' => $courseid])];
+        $this->rule = rule_manager::process_form((object) ['id' => $this->rule->get('id'), 'name' => 'Rule',
+            'cohortid' => $this->rule->get('cohortid'), 'description' => '', 'bulkprocessing' => 0, 'realtime' => 0,
+            'operator' => rule_manager::CONDITIONS_OPERATOR_AND, 'isconditionschanged' => true,
+            'conditionjson' => json_encode([$condition((int) $this->courses['a1']->id, 0),
+                $condition((int) $this->courses['a']->id, 1)])]);
+
+        $this->setUser($this->manager);
+        $cohorta1 = $this->getDataGenerator()->create_cohort(['contextid' => $this->contexts['a1']->id]);
+        try {
+            $this->move_rule((int) $cohorta1->id);
+            $this->fail('A rule was moved to a cohort whose category its second condition reaches outside.');
+        } catch (\moodle_exception $exception) {
+            $this->assertSame('conditionoutofscope', $exception->errorcode);
+        }
+
+        $this->rule = rule::get_record(['id' => $this->rule->get('id')]);
+        $this->assertSame('course_completed', substr(array_values($this->rule->get_condition_records())[0]->get('classname'), -16));
+        $this->assertNull($this->recorded_scope(0));
+    }
+
+    /**
      * Scoped config data that is not a JSON object is refused as invalid, not with a TypeError.
      */
     public function test_scoped_invalid_config_is_refused(): void {
@@ -483,5 +576,120 @@ final class condition_scope_test extends \advanced_testcase {
 
         // The control.
         $this->assertIsString(tool_dynamic_cohorts_output_fragment_condition_form($args('course_completed')));
+    }
+
+    /**
+     * A category manager's conditions all record the category they were written in.
+     */
+    public function test_scope_recorded_for_every_condition(): void {
+        $this->setUser($this->manager);
+        $this->rule = $this->save_with('user_last_login', ['operator' => 1]);
+
+        $condition = array_values($this->rule->get_condition_records())[0];
+        $config = json_decode($condition->get('configdata'), true);
+        $this->assertEquals($this->contexts['a']->id, $config[condition_base::SCOPE_KEY]);
+    }
+
+    /**
+     * Data provider: the course conditions that are checked again while processing.
+     *
+     * @return array
+     */
+    public static function moved_course_provider(): array {
+        return [
+            'course completed' => ['course_completed', ['operator' => 1]],
+            'user enrolment' => ['user_enrolment', ['operator' => 1, 'enrolmethod' => '', 'roleid' => 0]],
+        ];
+    }
+
+    /**
+     * A course moved out of the category breaks the rule while it is processed; members stay.
+     *
+     * @param string $condition Condition class name without the namespace.
+     * @param array $config Config other than the course.
+     */
+    #[DataProvider('moved_course_provider')]
+    public function test_moved_course_breaks_the_rule(string $condition, array $config): void {
+        global $CFG, $DB;
+        require_once($CFG->dirroot . '/course/lib.php');
+
+        $this->setUser($this->manager);
+        $this->rule = $this->save_with($condition, $config + ['courseid' => $this->courses['a1']->id]);
+        $this->rule->set('enabled', 1);
+        $this->rule->save();
+        $member = (int) $this->getDataGenerator()->create_user()->id;
+        cohort_add_member($this->rule->get('cohortid'), $member);
+
+        // The control: in place, nothing is broken.
+        $this->assertFalse($this->rule->is_broken(true));
+
+        $this->setAdminUser();
+        move_courses([$this->courses['a1']->id], $this->contexts['b']->instanceid);
+
+        $this->setUser(null);
+        rule_manager::process_rule($this->rule);
+        $this->assertTrue((bool) rule::get_record(['id' => $this->rule->get('id')])->get('broken'));
+        $this->assertTrue($DB->record_exists('cohort_members', ['cohortid' => $this->rule->get('cohortid'), 'userid' => $member]));
+
+        $instance = condition_base::get_instance(0, array_values($this->rule->get_condition_records())[0]->to_record());
+        $this->assertSame(get_string('brokenoutofscope', 'tool_dynamic_cohorts'), $instance->get_broken_description());
+    }
+
+    /**
+     * A category moved out of the category breaks a role condition naming it.
+     */
+    public function test_moved_category_breaks_user_role(): void {
+        $this->setUser($this->manager);
+        $this->rule = $this->save_with('user_role', ['operator' => 1, 'roleid' => $this->roleid,
+            'contextlevel' => CONTEXT_COURSECAT, 'categoryid' => $this->contexts['a1']->instanceid]);
+        $this->assertFalse($this->rule->is_broken(true));
+
+        $this->setAdminUser();
+        \core_course_category::get($this->contexts['a1']->instanceid)->change_parent($this->contexts['b']->instanceid);
+
+        $this->assertTrue($this->rule->is_broken(true));
+    }
+
+    /**
+     * A parent's cohort hidden after the save breaks a membership condition naming it.
+     */
+    public function test_hidden_cohort_breaks_cohort_membership(): void {
+        global $DB;
+
+        $this->setUser($this->manager);
+        $this->rule = $this->save_with('cohort_membership', ['cohort_membership_operator' => 1,
+            'cohort_membership_value' => [(int) $this->cohorts['systemvisible']->id]]);
+        $this->assertFalse($this->rule->is_broken(true));
+
+        $DB->set_field('cohort', 'visible', 0, ['id' => $this->cohorts['systemvisible']->id]);
+
+        $this->assertTrue($this->rule->is_broken(true));
+    }
+
+    /**
+     * A condition an administrator wrote records no category and is not checked again.
+     */
+    public function test_site_wide_condition_is_not_rechecked(): void {
+        $this->setAdminUser();
+        $this->rule = $this->save_with('course_completed', ['operator' => 1, 'courseid' => $this->courses['b']->id]);
+
+        $condition = array_values($this->rule->get_condition_records())[0];
+        $this->assertArrayNotHasKey(condition_base::SCOPE_KEY, json_decode($condition->get('configdata'), true));
+        $this->assertFalse($this->rule->is_broken(true));
+    }
+
+    /**
+     * A condition whose recorded category is gone is broken.
+     */
+    public function test_recorded_category_gone_breaks(): void {
+        $build = fn(int $scopeid) => condition_base::get_instance(0, (object) [
+            'classname' => self::NS . 'course_completed',
+            'configdata' => json_encode(['operator' => 1, 'courseid' => (int) $this->courses['a1']->id,
+                condition_base::SCOPE_KEY => $scopeid]),
+        ]);
+
+        // The control: the category A it was written in exists.
+        $this->assertFalse($build((int) $this->contexts['a']->id)->is_broken());
+        $this->assertTrue($build(999999)->is_broken());
     }
 }
