@@ -24,6 +24,7 @@
 
 use core_reportbuilder\system_report_factory;
 use tool_dynamic_cohorts\condition_form;
+use tool_dynamic_cohorts\local\rule_access;
 use tool_dynamic_cohorts\rule;
 use tool_dynamic_cohorts\reportbuilder\local\systemreports\matching_users;
 
@@ -44,8 +45,9 @@ function tool_dynamic_cohorts_output_fragment_condition_form(array $args): strin
        (cohort_membership), role names, courses and enrolment methods (user_role,
        user_enrolment) and custom profile field menu options (user_custom_profile) —
        including entries the caller has no business seeing. The sibling matching_users
-       fragment is covered by the system report's own can_view(); this one had nothing. */
-    require_capability('tool/dynamic_cohorts:manage', context_system::instance());
+       fragment is covered by the system report's own can_view(); this one had nothing.
+       The context is the page's, which core_get_fragment() has already validated. */
+    rule_access::require_manage(rule_access::context_from_id((int) $args->context->id));
 
     $classname = clean_param($args->classname, PARAM_RAW);
 
@@ -84,20 +86,21 @@ function tool_dynamic_cohorts_output_fragment_condition_form(array $args): strin
 function tool_dynamic_cohorts_output_fragment_matching_users(array $args): string {
     $args = (object) $args;
 
+    $ruleid = clean_param($args->ruleid, PARAM_INT);
+    $rule = rule::get_record(['id' => $ruleid]) ?: null;
+
     // The system report below enforces this too, via its own can_view(). Stated here as
     // well so the callback does not depend on a check that lives in another class.
-    require_capability('tool/dynamic_cohorts:manage', context_system::instance());
+    $context = rule_access::context_for($rule);
+    rule_access::require_manage($context);
 
-    $ruleid = clean_param($args->ruleid, PARAM_INT);
-
-    $rule = rule::get_record(['id' => $ruleid]);
     if (empty($rule)) {
         throw new dml_missing_record_exception(null);
     }
 
     $report = system_report_factory::create(
         matching_users::class,
-        context_system::instance(),
+        $context,
         'tool_dynamic_cohorts',
         '',
         0,

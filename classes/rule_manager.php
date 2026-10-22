@@ -20,6 +20,7 @@ use cache;
 use core\event\cohort_member_added;
 use core\event\cohort_member_removed;
 use moodle_exception;
+use tool_dynamic_cohorts\local\rule_access;
 use tool_dynamic_cohorts\event\matching_failed;
 use tool_dynamic_cohorts\event\rule_created;
 use tool_dynamic_cohorts\event\rule_deleted;
@@ -105,9 +106,19 @@ class rule_manager {
      *
      * @param \stdClass $formdata Data received from rule_form.
      * @return rule Rule instance.
+     * @throws \required_capability_exception When the user may not manage a cohort the save touches.
      */
     public static function process_form(\stdClass $formdata): rule {
         global $DB;
+
+        /* Decided on the cohorts the save touches, not on the page the form came from: the cohort
+           the rule fills now, when editing (moving a rule off a cohort changes that cohort too),
+           and the cohort it is being pointed at. Before the validation below, so a rule or cohort
+           id that does not exist is decided in the system context instead of being reported. */
+        if (!empty($formdata->id)) {
+            rule_access::require_manage(rule_access::context_for(rule::get_record(['id' => (int) $formdata->id]) ?: null));
+        }
+        rule_access::require_manage(rule_access::context_for_cohort((int) ($formdata->cohortid ?? 0)));
 
         $formdata->enabled = 0;
         self::validate_submitted_data($formdata);
@@ -130,13 +141,13 @@ class rule_manager {
             if (empty($formdata->id)) {
                 $rule = new rule(0, $ruledata);
                 $rule->create();
-                rule_created::create(['other' => ['ruleid' => $rule->get('id')]])->trigger();
+                rule_created::create(['context' => $rule->get_context(), 'other' => ['ruleid' => $rule->get('id')]])->trigger();
             } else {
                 $rule = new rule($formdata->id);
                 $oldcohortid = $rule->get('cohortid');
                 $rule->from_record($ruledata);
                 $rule->update();
-                rule_updated::create(['other' => ['ruleid' => $rule->get('id')]])->trigger();
+                rule_updated::create(['context' => $rule->get_context(), 'other' => ['ruleid' => $rule->get('id')]])->trigger();
             }
 
             if ($oldcohortid != $formdata->cohortid) {
@@ -199,9 +210,12 @@ class rule_manager {
         $oldruleid = $rule->get('id');
         $conditions = $rule->get_condition_records();
 
+        // Read before anything is deleted: unmanage_cohort() below leaves the cohort in place.
+        $context = $rule->get_context();
+
         if ($rule->delete()) {
-            rule_deleted::create(['other' => ['ruleid' => $oldruleid]])->trigger();
-            condition_manager::delete_conditions($conditions);
+            rule_deleted::create(['context' => $context, 'other' => ['ruleid' => $oldruleid]])->trigger();
+            condition_manager::delete_conditions($conditions, $context);
             cohort_manager::unmanage_cohort($rule->get('cohortid'));
         }
     }
@@ -310,6 +324,7 @@ class rule_manager {
      */
     private static function trigger_matching_failed_event(rule $rule, string $error): void {
         matching_failed::create([
+            'context' => $rule->get_context(),
             'other' => [
                 'ruleid' => $rule->get('id'),
                 'error' => $error,

@@ -9,9 +9,29 @@ Entries below cover the fork only; upstream history lives in that repository.
 
 ## [Unreleased]
 
-Stage S0 of `docs/category-context/PLAN.md`: three defects that were harmless while the
-capability can only be granted site-wide, and that become privilege-boundary breaches once rules
-are managed per category. Fixed first, before any scoping.
+Stages S0 and S1 of `docs/category-context/PLAN.md`. S0 fixed three defects that were harmless
+while the capability could only be granted site-wide and that become privilege-boundary breaches
+once rules are managed per category. S1 decides every rule in its cohort's context. The rules
+page itself is still the site administration page; reaching it from a category is stage S2.
+
+### Changed
+
+- `tool/dynamic_cohorts:manage` is a course category capability now, and every rule is decided
+  in its cohort's context by the new `local\rule_access`, which requires both that capability
+  and `moodle/cohort:assign` there. This covers the rule form (its cohort list keeps the cohorts
+  at or below the page that the user may attach a rule to), saving a rule (the cohort it fills
+  and the cohort it is pointed at are both checked), the four web services (a rule id that does
+  not exist is decided in the system context), both fragments, and the matching-users report,
+  which is decided on its rule rather than on the context it was created in.
+- Rule and condition events are raised in the rule's cohort context instead of the system
+  context, also when the rule is being deleted.
+- `tool_dynamic_cohorts_submit_condition_form` takes an optional `contextid`, the page the rule
+  is edited from (system or course category).
+- `cohort_manager::get_cohorts()` reads `{cohort}` directly. It used to go through
+  `cohort_get_all_cohorts()`, which drops the cohorts of every context where the current user
+  lacks `moodle/cohort:view` or `:manage`: a category manager holding `moodle/cohort:assign`
+  would have got an empty list, and claiming or releasing a cohort would silently have done
+  nothing.
 
 ### Fixed
 
@@ -32,7 +52,7 @@ are managed per category. Fixed first, before any scoping.
 
 ### Added
 
-- `mutations/gates.conf`: the mutation spec for these guards (`mdl mutate`).
+- `mutations/gates.conf`: the mutation spec for these guards (`mdl mutate`), gates A-X.
 
 ## [v5.3-r1] - 2026-10-18
 
