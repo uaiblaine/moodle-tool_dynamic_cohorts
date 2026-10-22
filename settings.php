@@ -46,6 +46,11 @@ if ($hassiteconfig) {
         new lang_string('settings:bulkprocessingevents_desc', 'tool_dynamic_cohorts'),
         0
     ));
+    $settings->add(new \tool_dynamic_cohorts\local\admin_setting_category_conditions(
+        'tool_dynamic_cohorts/categoryconditions',
+        new lang_string('settings:categoryconditions', 'tool_dynamic_cohorts'),
+        new lang_string('settings:categoryconditions_desc', 'tool_dynamic_cohorts')
+    ));
     $ADMIN->add('tool_dynamic_cohorts', $settings);
 }
 
