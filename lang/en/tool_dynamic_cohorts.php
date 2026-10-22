@@ -32,6 +32,7 @@ $string['after'] = 'After';
 $string['any'] = 'Any';
 $string['before'] = 'Before';
 $string['broken'] = 'Broken';
+$string['brokenoutofscope'] = 'Refers to something that is no longer in the course category it was written for. Remove or rewrite this condition.';
 $string['brokenruleswarning'] = 'There are some broken rules require your attention.  <br /> To fix a broken rule you should remove all broken conditions. <br />Sometimes a rule becomes broken when matching users SQL failed. In this case all condition are ok, but the rule is marked as broken. You should check Moodle logs for "Matching users failed" event and related SQL errors. <br />Please note, that in any case you have to re-save the rule to mark it as unbroken.';
 $string['bulkprocessing'] = 'Bulk processing';
 $string['bulkprocessing_help'] = 'If this option is enabled, users will be added and removed from cohort in bulk. This will significantly improve processing performance. However, using this option will suppress triggering events when users added or removed from cohort, unless the \'Trigger events during bulk processing\' site setting is enabled.';
