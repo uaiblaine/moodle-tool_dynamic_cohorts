@@ -99,6 +99,15 @@ class cohort_membership extends condition_base {
     }
 
     /**
+     * Its referents are checked again while the rule is processed ({@see condition_base::is_outside_recorded_scope()}).
+     *
+     * @return bool
+     */
+    protected function rechecks_scope_when_processed(): bool {
+        return true;
+    }
+
+    /**
      * Available to category-level users: every cohort must be usable from their category.
      *
      * @return bool
@@ -117,13 +126,21 @@ class cohort_membership extends condition_base {
             return [];
         }
 
-        $usable = $this->get_all_cohorts();
-        foreach ($this->get_configured_cohorts() as $cohortid) {
-            if (!array_key_exists((int) $cohortid, $usable)) {
-                return [$this->get_cohort_field() => get_string('outofscope', 'tool_dynamic_cohorts')];
-            }
+        global $DB;
+
+        /* Only the configured cohorts, in one query that reads no capability: this also runs while
+           the rule is processed, on every event the rule listens to. */
+        $ids = array_unique(array_map('intval', $this->get_configured_cohorts()));
+        if (empty($ids)) {
+            return [];
         }
-        return [];
+        [$insql, $inparams] = $DB->get_in_or_equal($ids, SQL_PARAMS_NAMED, condition_sql::generate_param_alias());
+        [$scopesql, $scopeparams] = self::scoped_cohorts_sql('c', $this->scope);
+        $sql = "SELECT COUNT(1) FROM {cohort} c WHERE c.id {$insql} AND {$scopesql}";
+        if ($DB->count_records_sql($sql, $inparams + $scopeparams) == count($ids)) {
+            return [];
+        }
+        return [$this->get_cohort_field() => get_string('outofscope', 'tool_dynamic_cohorts')];
     }
 
     /**
@@ -228,6 +245,10 @@ class cohort_membership extends condition_base {
      * @return string
      */
     public function get_broken_description(): string {
+        if ($this->is_outside_recorded_scope()) {
+            return get_string('brokenoutofscope', 'tool_dynamic_cohorts');
+        }
+
         if ($this->is_using_rule_cohort()) {
             $description = get_string('condition:cohort_membership_broken_description', 'tool_dynamic_cohorts');
             $description .= '<br />';
@@ -306,6 +327,10 @@ class cohort_membership extends condition_base {
      * @return bool
      */
     public function is_broken(): bool {
+        if ($this->is_outside_recorded_scope()) {
+            return true;
+        }
+
         // Check if configured cohort is still exist.
         foreach ($this->get_configured_cohorts() as $cohortid) {
             if (!array_key_exists($cohortid, $this->get_all_cohorts())) {

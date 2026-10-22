@@ -143,6 +143,15 @@ class user_enrolment extends condition_base {
     }
 
     /**
+     * Its referents are checked again while the rule is processed ({@see condition_base::is_outside_recorded_scope()}).
+     *
+     * @return bool
+     */
+    protected function rechecks_scope_when_processed(): bool {
+        return true;
+    }
+
+    /**
      * Available to category-level users: the course must lie under their category.
      *
      * @return bool
@@ -231,6 +240,10 @@ class user_enrolment extends condition_base {
      * @return string
      */
     public function get_broken_description(): string {
+        if ($this->is_outside_recorded_scope()) {
+            return get_string('brokenoutofscope', 'tool_dynamic_cohorts');
+        }
+
         global $DB;
 
         // Missing role.
@@ -326,6 +339,10 @@ class user_enrolment extends condition_base {
      * @return bool
      */
     public function is_broken(): bool {
+        if ($this->is_outside_recorded_scope()) {
+            return true;
+        }
+
         global $DB;
 
         if ($this->get_config_data()) {

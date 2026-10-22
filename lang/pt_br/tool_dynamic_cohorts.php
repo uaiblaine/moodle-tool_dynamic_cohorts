@@ -32,6 +32,7 @@ $string['after'] = 'Depois de';
 $string['any'] = 'Qualquer';
 $string['before'] = 'Antes de';
 $string['broken'] = 'Quebrada';
+$string['brokenoutofscope'] = 'Refere-se a algo que não está mais na categoria de cursos em que foi escrita. Remova ou reescreva esta condição.';
 $string['brokenruleswarning'] = 'Existem regras quebradas que exigem sua atenção. <br /> Para corrigir uma regra quebrada, remova todas as condições quebradas. <br />Às vezes uma regra fica quebrada porque o SQL de correspondência de usuários falhou. Nesse caso todas as condições estão corretas, mas a regra é marcada como quebrada. Consulte os logs do Moodle procurando pelo evento "Falha na correspondência de usuários" e pelos erros de SQL relacionados. <br />Observe que, em qualquer caso, você precisa salvar a regra novamente para marcá-la como não quebrada.';
 $string['bulkprocessing'] = 'Processamento em lote';
 $string['bulkprocessing_help'] = 'Se esta opção estiver habilitada, os usuários serão adicionados e removidos do coorte em lote. Isso melhora significativamente o desempenho do processamento. No entanto, usar esta opção suprime o disparo de eventos quando usuários são adicionados ou removidos do coorte, a menos que a configuração do site \'Disparar eventos no processamento em lote\' esteja habilitada.';
