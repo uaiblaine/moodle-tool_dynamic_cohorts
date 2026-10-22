@@ -1,2 +1,2 @@
 # AR: any cohort counts as usable.
-s{if \(!array_key_exists\(\(int\) \$cohortid, \$usable\)\) \{}{if (false) \{}s;
+s{if \(\$DB->count_records_sql\(\$sql, \$inparams \+ \$scopeparams\) == count\(\$ids\)\) \{}{if (true) \{}s;

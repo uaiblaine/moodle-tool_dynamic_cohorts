@@ -120,6 +120,11 @@ abstract class condition_base {
     public const DATE_IN_THE_FUTURE = 40;
 
     /**
+     * Config key of the category a category-level user wrote the condition in ({@see self::record_scope()}).
+     */
+    public const SCOPE_KEY = 'scopecontextid';
+
+    /**
      * Condition persistent object.
      *
      * @var condition $condition
@@ -267,11 +272,74 @@ abstract class condition_base {
     }
 
     /**
-     * Store the scope in the config data, for a condition that needs it while the rule is processed.
+     * Store the scope in the config data, so the condition is held to it while the rule is processed.
      *
      * Called on save for every new or changed condition of a scoped user, before validate_scope().
+     * The category is recorded because nothing else is at that point: cron and observers run with
+     * no user and no page ({@see self::is_outside_recorded_scope()}).
      */
     public function record_scope(): void {
+        if ($this->scope !== null) {
+            $this->set_config_data([self::SCOPE_KEY => (int) $this->scope->id] + $this->get_config_data());
+        }
+    }
+
+    /**
+     * The category context recorded by record_scope(), or null when none was recorded or it is gone.
+     *
+     * @return \core\context|null
+     */
+    protected function get_recorded_scope(): ?\core\context {
+        $config = json_decode((string) $this->condition->get('configdata'), true);
+        $contextid = is_array($config) ? (int) ($config[self::SCOPE_KEY] ?? 0) : 0;
+        return $contextid ? (\core\context::instance_by_id($contextid, IGNORE_MISSING) ?: null) : null;
+    }
+
+    /**
+     * Whether validate_scope() can be repeated while the rule is processed.
+     *
+     * Only for referents whose place does not depend on who is asking (a course, a category, a
+     * cohort): a profile field's visibility depends on the capabilities of the user who wrote the
+     * condition, which processing does not have.
+     *
+     * @return bool
+     */
+    protected function rechecks_scope_when_processed(): bool {
+        return false;
+    }
+
+    /**
+     * Whether the condition reaches outside the category it was written in, as things stand now.
+     *
+     * A course, category or cohort the condition names may be moved or hidden after the save. A
+     * condition doing so is broken: rule_manager::process_rule() then marks the rule broken and
+     * stops, keeping the cohort's members, instead of matching through a referent the category
+     * no longer owns. A condition without a recorded scope (written site-wide) is never affected,
+     * and one whose recorded category is gone always is.
+     *
+     * @return bool
+     */
+    public function is_outside_recorded_scope(): bool {
+        $config = json_decode((string) $this->condition->get('configdata'), true);
+        if (!is_array($config) || empty($config[self::SCOPE_KEY])) {
+            return false;
+        }
+
+        $recorded = $this->get_recorded_scope();
+        if ($recorded === null) {
+            return true;
+        }
+        if (!$this->rechecks_scope_when_processed()) {
+            return false;
+        }
+
+        $previous = $this->scope;
+        $this->set_scope($recorded);
+        try {
+            return !empty($this->validate_scope());
+        } finally {
+            $this->set_scope($previous);
+        }
     }
 
     /**
