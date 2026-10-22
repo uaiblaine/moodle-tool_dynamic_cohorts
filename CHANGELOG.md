@@ -9,12 +9,37 @@ Entries below cover the fork only; upstream history lives in that repository.
 
 ## [Unreleased]
 
-Stages S0, S1 and S2 of the category-context plan (`docs/category-context/PLAN.md` on `main`).
-S0 fixed three defects that were harmless while the capability could only be granted site-wide
-and that become privilege-boundary breaches once rules are managed per category. S1 decides every
-rule in its cohort's context. S2 makes the rules page reachable from a course category.
+Stages S0 to S3 of the category-context plan (`docs/category-context/PLAN.md` on `main`). S0
+fixed three defects that were harmless while the capability could only be granted site-wide and
+that become privilege-boundary breaches once rules are managed per category. S1 decides every
+rule in its cohort's context. S2 makes the rules page reachable from a course category. S3 keeps
+the conditions a category-level user writes inside that category.
 
 ### Added
+
+- Conditions written by a user who manages rules in a course category, rather than site-wide,
+  stay inside that category. A condition opts in (`condition_base::supports_category_scope()`)
+  and checks its referents (`validate_scope()`): the modal offers only what lies in the category,
+  and saving the rule checks again against the cohort the rule fills. That check includes the
+  stored conditions sent back unchanged and the conditions of a rule saved without touching them,
+  so a condition an administrator wrote outside the category blocks a category manager's save
+  until it is removed. Per condition:
+    - course completed, not completed and user enrolment take only courses of the category;
+    - user role takes a category or a course of the category, never the system level (a role held
+      higher up still counts, as for any role condition);
+    - cohort membership takes the cohorts usable from the category: its own and its
+      subcategories', and the visible ones of the contexts above it;
+    - cohort field records the category on save (`scopecontextid`) and, while the rule is
+      processed, matches only the cohorts usable from it;
+    - user profile offers username, email and idnumber only where core would show that identity
+      field to the user in the category, and a field the site hides (`hiddenuserfields`) only with
+      `moodle/user:viewhiddendetails` site-wide; custom profile fields follow their visibility;
+    - auth method, last login, account creation and interests refer to nothing outside the user.
+  An administrator, and any rule of a system cohort, writes conditions as before.
+- Setting "Conditions available in course categories" (`categoryconditions`): the conditions a
+  category-level user may use. Every built-in condition by default; conditions from other plugins
+  stay off until they support a category scope and are ticked. A condition switched off keeps
+  working in existing rules, but a category-level user can no longer save a rule that uses it.
 
 - The rules page in a course category: `index.php?contextid=<category context>`, offered as
   "Dynamic cohort rules" in the category's navigation to whoever may manage rules there. It lists
@@ -24,7 +49,7 @@ rule in its cohort's context. S2 makes the rules page reachable from a course ca
   only in the system or a course category context and, below the system level, lists that
   context's subtree whatever context core's report services are asked for.
 - Test data generators (`tests/generator/`), with a Behat entity for rules.
-- `mutations/gates.conf`: the mutation spec for these guards (`mdl mutate`), gates A-Z and AA-AH.
+- `mutations/gates.conf`: the mutation spec for these guards (`mdl mutate`), gates A-Z, AA-AZ and BA.
 
 ### Changed
 

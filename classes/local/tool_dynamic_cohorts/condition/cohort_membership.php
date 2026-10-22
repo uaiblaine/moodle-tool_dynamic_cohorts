@@ -78,12 +78,52 @@ class cohort_membership extends condition_base {
     protected function get_all_cohorts(): array {
         if (is_null($this->allcohorts)) {
             $this->allcohorts = [];
-            foreach (cohort_manager::get_cohorts() as $cohort) {
+            // A category-level user picks among the cohorts usable from the category only.
+            $cohorts = $this->scope === null ? cohort_manager::get_cohorts() : $this->get_scoped_cohorts();
+            foreach ($cohorts as $cohort) {
                 $this->allcohorts[$cohort->id] = $cohort->name;
             }
         }
 
         return $this->allcohorts;
+    }
+
+    /**
+     * Set the scope, and forget a cohort list built for another one.
+     *
+     * @param \core\context|null $scope Course category context, or null when unscoped.
+     */
+    public function set_scope(?\core\context $scope): void {
+        parent::set_scope($scope);
+        $this->allcohorts = null;
+    }
+
+    /**
+     * Available to category-level users: every cohort must be usable from their category.
+     *
+     * @return bool
+     */
+    public function supports_category_scope(): bool {
+        return true;
+    }
+
+    /**
+     * Errors for a configured cohort that is not usable from the scope.
+     *
+     * @return array
+     */
+    public function validate_scope(): array {
+        if ($this->scope === null) {
+            return [];
+        }
+
+        $usable = $this->get_all_cohorts();
+        foreach ($this->get_configured_cohorts() as $cohortid) {
+            if (!array_key_exists((int) $cohortid, $usable)) {
+                return [$this->get_cohort_field() => get_string('outofscope', 'tool_dynamic_cohorts')];
+            }
+        }
+        return [];
     }
 
     /**
