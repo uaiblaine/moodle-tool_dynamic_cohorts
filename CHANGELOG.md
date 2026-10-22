@@ -7,10 +7,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This is a fork of [catalyst/moodle-tool_dynamic_cohorts](https://github.com/catalyst/moodle-tool_dynamic_cohorts).
 Entries below cover the fork only; upstream history lives in that repository.
 
-## [Unreleased]
+## [v5.3-r3] - 2026-10-22
+
+Third release of this fork for Moodle 5.3 ($plugin->version = 2026100504). A category-level user's
+conditions now stay inside their category while the rule is processed, not only when it is saved.
 
 ### Changed
 
+- `$plugin->version` 2026100504: the release adds a language string (`brokenoutofscope`), and
+  the upgrade refreshes the string cache.
 - A condition written by a category-level user records the category it was written in, every
   condition and not only the cohort field one (`scopecontextid`). Course, enrolment, role and
   cohort membership conditions check their course, category or cohort against it again whenever
