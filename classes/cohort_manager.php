@@ -17,6 +17,7 @@
 namespace tool_dynamic_cohorts;
 
 use moodle_exception;
+use tool_dynamic_cohorts\local\rule_access;
 
 defined('MOODLE_INTERNAL') || die();
 require_once($CFG->dirroot . '/cohort/lib.php');
@@ -38,14 +39,36 @@ class cohort_manager {
      * Get a list of all cohort names in the system keyed by cohort ID.
      *
      * @param bool $excludemanaged Exclude cohorts managed by us.
+     * @param \core\context|null $within Only cohorts in this context or below it that the current
+     *     user may attach a rule to (rule_access); null for every cohort, unchecked.
      * @return array
      */
-    public static function get_cohorts(bool $excludemanaged = false): array {
+    public static function get_cohorts(bool $excludemanaged = false, ?\core\context $within = null): array {
+        global $DB;
+
+        /* Read straight from {cohort}, not through cohort_get_all_cohorts(): that one drops the
+           cohorts of every context where the CURRENT user lacks moodle/cohort:view or :manage, so a
+           category manager holding only moodle/cohort:assign got an empty list, and manage_cohort()
+           / unmanage_cohort() below silently did nothing. Who may act on a cohort is rule_access's
+           decision, applied when $within is given. */
         $cohorts = [];
-        foreach (\cohort_get_all_cohorts(0, 0)['cohorts'] as $cohort) {
-            if (empty($cohort->component) || (!$excludemanaged && $cohort->component === self::COHORT_COMPONENT)) {
-                $cohorts[$cohort->id] = $cohort;
+        foreach ($DB->get_records('cohort', null, 'name ASC, idnumber ASC') as $cohort) {
+            if (!empty($cohort->component) && ($excludemanaged || $cohort->component !== self::COHORT_COMPONENT)) {
+                continue;
             }
+
+            if ($within !== null) {
+                $context = \core\context::instance_by_id((int) $cohort->contextid, IGNORE_MISSING);
+                if (!$context) {
+                    continue;
+                }
+                $inside = $context->id == $within->id || str_starts_with($context->path, $within->path . '/');
+                if (!$inside || !rule_access::can_manage($context)) {
+                    continue;
+                }
+            }
+
+            $cohorts[$cohort->id] = $cohort;
         }
 
         return $cohorts;

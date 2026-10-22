@@ -16,10 +16,10 @@
 
 namespace tool_dynamic_cohorts\external;
 
-use context_system;
 use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_value;
+use tool_dynamic_cohorts\local\rule_access;
 use tool_dynamic_cohorts\rule;
 use invalid_parameter_exception;
 use tool_dynamic_cohorts\rule_manager;
@@ -51,10 +51,10 @@ class matching_users extends external_api {
     public static function get_total(int $ruleid): int {
         $params = self::validate_parameters(self::get_total_parameters(), ['ruleid' => $ruleid]);
 
-        self::validate_context(context_system::instance());
-        require_capability('tool/dynamic_cohorts:manage', context_system::instance());
-
-        $rule = rule::get_record(['id' => $params['ruleid']]);
+        $rule = rule::get_record(['id' => $params['ruleid']]) ?: null;
+        $context = rule_access::context_for($rule);
+        self::validate_context($context);
+        rule_access::require_manage($context);
 
         if (empty($rule)) {
             throw new invalid_parameter_exception('Rule does not exist');
