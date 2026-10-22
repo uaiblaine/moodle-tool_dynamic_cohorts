@@ -321,8 +321,9 @@ final class rule_access_test extends \advanced_testcase {
     public function test_condition_form_service_context(): void {
         $this->setUser($this->manager);
         $classname = 'tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition\user_last_login';
+        // An explicit '&': 5.1 sets arg_separator.output to '&amp;', which would rename every field.
         $formdata = json_encode(http_build_query(['id' => 0, 'sortorder' => 0, 'operator' => 1,
-            '_qf__tool_dynamic_cohorts_condition_form' => 1, 'sesskey' => sesskey()]));
+            '_qf__tool_dynamic_cohorts_condition_form' => 1, 'sesskey' => sesskey()], '', '&'));
         $_POST['sesskey'] = sesskey();
 
         $this->assert_refused(fn() => condition_form::submit($classname, $formdata, $this->contexts['b']->id));
