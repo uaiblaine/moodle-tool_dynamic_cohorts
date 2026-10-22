@@ -39,6 +39,7 @@ $string['cachedef_conditionrecords'] = 'Condições de uma regra';
 $string['cachedef_matchinguserscount'] = 'Quantidade de usuários correspondentes a uma regra';
 $string['cachedef_rulesconditions'] = 'Regras com uma condição específica';
 $string['cannotenablebrokenrule'] = 'Uma regra quebrada não pode ser habilitada';
+$string['categorynavigation'] = 'Regras de coortes dinâmicos';
 $string['cf_include_missing_data'] = 'Incluir coortes sem dados preenchidos.';
 $string['cf_include_missing_data_help'] = 'Alguns coortes podem ainda não ter valor definido para um campo personalizado. Esta opção inclui esses coortes no resultado final.';
 $string['cf_includingmissingdatadesc'] = '(incluindo coortes sem dados preenchidos)';
