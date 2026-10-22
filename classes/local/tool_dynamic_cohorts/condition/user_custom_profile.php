@@ -62,6 +62,26 @@ class user_custom_profile extends user_profile {
     }
 
     /**
+     * Whether a custom profile field may be matched in the scope, by its visibility.
+     *
+     * As profile_field_base::is_visible() decides for other users: visible to everyone always;
+     * visible to teachers with moodle/site:viewuseridentity in the category; private or hidden only
+     * with moodle/user:viewalldetails in the system context, the only context above every user's.
+     *
+     * @param int $visible The field's visibility (PROFILE_VISIBLE_*).
+     * @return bool
+     */
+    protected function custom_field_in_scope(int $visible): bool {
+        if ($this->scope === null || $visible == PROFILE_VISIBLE_ALL) {
+            return true;
+        }
+        if ($visible == PROFILE_VISIBLE_TEACHERS) {
+            return has_capability('moodle/site:viewuseridentity', $this->scope);
+        }
+        return has_capability('moodle/user:viewalldetails', \core\context\system::instance());
+    }
+
+    /**
      * Returns a list of all fields with extra data (shortname, name, datatype and param1).
      *
      * @return \stdClass[]
@@ -75,6 +95,10 @@ class user_custom_profile extends user_profile {
 
         foreach (profile_get_user_fields_with_data(0) as $customfield) {
             if (!in_array($customfield->field->datatype, $this->get_supported_custom_fields())) {
+                continue;
+            }
+
+            if (!$this->custom_field_in_scope((int) $customfield->field->visible)) {
                 continue;
             }
 

@@ -95,6 +95,22 @@ class rule_access {
     }
 
     /**
+     * The scope a condition written in a context is held to, or null when it is not held to one.
+     *
+     * A rule in the system context, or a user who may manage rules site-wide, writes conditions
+     * as before; a category-level user writes them within the category.
+     *
+     * @param context $context The rule's cohort context, or the page's.
+     * @return context|null
+     */
+    public static function condition_scope(context $context): ?context {
+        if ($context->contextlevel == CONTEXT_SYSTEM || self::can_manage(\core\context\system::instance())) {
+            return null;
+        }
+        return $context;
+    }
+
+    /**
      * Resolve a context id sent by a client into a context rules can be managed in.
      *
      * Cohorts live in the system or a course category context only, so nothing else is accepted.

@@ -53,6 +53,15 @@ class user_last_login extends condition_base {
     public const OPERATOR_IN_LAST = 5;
 
     /**
+     * Available to category-level users: it refers to nothing outside the user (D2).
+     *
+     * @return bool
+     */
+    public function supports_category_scope(): bool {
+        return true;
+    }
+
+    /**
      * Condition name.
      *
      * @return string

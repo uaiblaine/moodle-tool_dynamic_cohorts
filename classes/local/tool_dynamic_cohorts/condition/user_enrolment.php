@@ -108,7 +108,7 @@ class user_enrolment extends condition_base {
         );
 
         // Course.
-        $mform->addElement('course', 'courseid', get_string('course'));
+        $this->add_course_element($mform, 'courseid', get_string('course'));
         $mform->setType('courseid', PARAM_INT);
         $mform->hideIf('courseid', 'contextlevel', 'in', [CONTEXT_SYSTEM, CONTEXT_COURSECAT]);
 
@@ -140,6 +140,27 @@ class user_enrolment extends condition_base {
         }
 
         return $errors;
+    }
+
+    /**
+     * Available to category-level users: the course must lie under their category.
+     *
+     * @return bool
+     */
+    public function supports_category_scope(): bool {
+        return true;
+    }
+
+    /**
+     * Errors for a course outside the scope.
+     *
+     * @return array
+     */
+    public function validate_scope(): array {
+        if (!$this->course_in_scope($this->get_courseid_value())) {
+            return ['courseid' => get_string('outofscope', 'tool_dynamic_cohorts')];
+        }
+        return [];
     }
 
     /**
