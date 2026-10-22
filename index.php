@@ -24,20 +24,22 @@
 
 use core\notification;
 use core_reportbuilder\system_report_factory;
-use tool_dynamic_cohorts\rule;
+use tool_dynamic_cohorts\local\rules_page;
 use tool_dynamic_cohorts\reportbuilder\local\systemreports\rules;
 
 require_once(__DIR__ . '/../../../config.php');
-require_once($CFG->libdir . '/adminlib.php');
+require_login();
 
-admin_externalpage_setup('tool_dynamic_cohorts_rules');
+// The system context is the site administration page; a course category context is that
+// category's own page, reached from its navigation (lib.php).
+$context = rules_page::setup(optional_param('contextid', 0, PARAM_INT));
 
 /* The "add a rule" control opens a modal (amd/src/manage_rules.js initRuleAdd), so its
    href is only the no-JS fallback. It used to point at edit.php, which upstream deleted
    in 94e7a8e when the form moved into the modal — so the fallback was a 404. Point it at
    this page, which is what every report builder action in
    reportbuilder\local\systemreports\rules::add_actions() already does. */
-$manageurl = new moodle_url('/admin/tool/dynamic_cohorts/index.php');
+$manageurl = rules_page::url($context);
 
 /* Collect both conditions before emitting, rather than breaking out of the loop on the
    first hit. The original broke on whichever it met first, so a site with broken rules
@@ -47,7 +49,7 @@ $globalrealtime = get_config('tool_dynamic_cohorts', 'realtime');
 $hasbroken = false;
 $hasrealtime = false;
 
-foreach (rule::get_records() as $rule) {
+foreach (rules_page::rules_in($context) as $rule) {
     $hasbroken = $hasbroken || $rule->is_broken();
     $hasrealtime = $hasrealtime || ($rule->is_realtime() && !$globalrealtime);
 
@@ -64,7 +66,7 @@ if ($hasrealtime) {
     notification::warning(get_string('realtimedisabledglobally', 'tool_dynamic_cohorts'));
 }
 
-$report = system_report_factory::create(rules::class, context_system::instance(), 'tool_dynamic_cohorts');
+$report = system_report_factory::create(rules::class, $context, 'tool_dynamic_cohorts');
 
 $PAGE->requires->js_call_amd('tool_dynamic_cohorts/manage_rules', 'init');
 

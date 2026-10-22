@@ -9,10 +9,22 @@ Entries below cover the fork only; upstream history lives in that repository.
 
 ## [Unreleased]
 
-Stages S0 and S1 of `docs/category-context/PLAN.md`. S0 fixed three defects that were harmless
-while the capability could only be granted site-wide and that become privilege-boundary breaches
-once rules are managed per category. S1 decides every rule in its cohort's context. The rules
-page itself is still the site administration page; reaching it from a category is stage S2.
+Stages S0, S1 and S2 of `docs/category-context/PLAN.md`. S0 fixed three defects that were
+harmless while the capability could only be granted site-wide and that become privilege-boundary
+breaches once rules are managed per category. S1 decides every rule in its cohort's context. S2
+makes the rules page reachable from a course category.
+
+### Added
+
+- The rules page in a course category: `index.php?contextid=<category context>`, offered as
+  "Dynamic cohort rules" in the category's navigation to whoever may manage rules there. It lists
+  the rules whose cohort lives in the category or below it; each row's actions are decided in that
+  rule's own cohort context, so a subcategory where the capability is prohibited is listed without
+  them. The page set-up and the listed scope live in `local\rules_page`. The rules report opens
+  only in the system or a course category context and, below the system level, lists that
+  context's subtree whatever context core's report services are asked for.
+- Test data generators (`tests/generator/`), with a Behat entity for rules.
+- `mutations/gates.conf`: the mutation spec for these guards (`mdl mutate`), gates A-Z and AA-AH.
 
 ### Changed
 
@@ -35,6 +47,8 @@ page itself is still the site administration page; reaching it from a category i
 
 ### Fixed
 
+- A rule whose cohort was deleted is now listed on the system rules page: the report joined the cohort
+  with an INNER JOIN, so such a rule was listed nowhere and could not be deleted.
 - Saving a rule rewrote any condition whose id the form sent, including another rule's: the
   submitted record has its `ruleid` stripped, so the stored row kept its own rule and was
   updated in place. A submitted condition id must now belong to the rule being saved, and the
@@ -49,10 +63,6 @@ page itself is still the site administration page; reaching it from a category i
 - `tool_dynamic_cohorts_delete_rules` checked the capability once, in the system context. Each
   rule is now also checked in its cohort's context (`rule::get_context()`, the system context
   for a rule whose cohort is gone), before anything is deleted.
-
-### Added
-
-- `mutations/gates.conf`: the mutation spec for these guards (`mdl mutate`), gates A-Z and AA.
 
 ## [v5.3-r1] - 2026-10-18
 
