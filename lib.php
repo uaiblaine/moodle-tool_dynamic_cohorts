@@ -48,7 +48,8 @@ function tool_dynamic_cohorts_output_fragment_condition_form(array $args): strin
        including entries the caller has no business seeing. The sibling matching_users
        fragment is covered by the system report's own can_view(); this one had nothing.
        The context is the page's, which core_get_fragment() has already validated. */
-    rule_access::require_manage(rule_access::context_from_id((int) $args->context->id));
+    $context = rule_access::context_from_id((int) $args->context->id);
+    rule_access::require_manage($context);
 
     $classname = clean_param($args->classname, PARAM_RAW);
 
@@ -58,7 +59,8 @@ function tool_dynamic_cohorts_output_fragment_condition_form(array $args): strin
         parse_str($serialiseddata, $ajaxdata);
     }
 
-    $mform = new condition_form(null, ['classname' => $classname], 'post', '', null, true, $ajaxdata);
+    $customdata = ['classname' => $classname, 'scope' => rule_access::condition_scope($context)];
+    $mform = new condition_form(null, $customdata, 'post', '', null, true, $ajaxdata);
 
     unset($ajaxdata['classname']);
 

@@ -41,7 +41,7 @@ class course_not_completed extends course_completed {
      * @param \MoodleQuickForm $mform
      */
     public function config_form_add(\MoodleQuickForm $mform): void {
-        $mform->addElement('course', 'courseid', get_string('course'), ['onlywithcompletion' => true]);
+        $this->add_course_element($mform, 'courseid', get_string('course'), ['onlywithcompletion' => true]);
         $mform->addRule('courseid', null, 'required', null, 'client');
         $mform->setType('courseid', PARAM_INT);
     }

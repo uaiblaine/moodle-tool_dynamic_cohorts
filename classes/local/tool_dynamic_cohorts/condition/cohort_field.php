@@ -49,6 +49,11 @@ class cohort_field extends condition_base {
     public const FIELD_NAME = 'cohort_field';
 
     /**
+     * Config key of the scope recorded for a category-level user (record_scope()).
+     */
+    public const SCOPE_KEY = 'scopecontextid';
+
+    /**
      * Operator value when need members of cohort(s).
      */
     public const OPERATOR_IS_MEMBER_OF = 1;
@@ -449,6 +454,15 @@ class cohort_field extends condition_base {
                 $params[$selectedcohortparam] = $rule->get('cohortid');
             }
 
+            /* Written by a category-level user: only the cohorts usable from the category it was
+               written in. Read from the config, because this runs in cron and observers, where
+               there is no user and no scope to ask. */
+            if ($scope = $this->get_recorded_scope()) {
+                [$scopesql, $scopeparams] = self::scoped_cohorts_sql($cohorttbl, $scope);
+                $cohortsql .= " AND $scopesql";
+                $params += $scopeparams;
+            }
+
             $cohortmemberstbl = condition_sql::generate_table_alias();
             $outertbl = condition_sql::generate_table_alias();
 
@@ -504,8 +518,58 @@ class cohort_field extends condition_base {
             if ($configuredfield == 'contextid' && !array_key_exists($fieldvalue, $this->get_category_options())) {
                 return true;
             }
+
+            // The category it was written in is gone: matching every cohort instead would widen it.
+            if (!empty($this->get_config_data()[self::SCOPE_KEY]) && !$this->get_recorded_scope()) {
+                return true;
+            }
         }
 
         return false;
+    }
+
+    /**
+     * Available to category-level users: the cohorts it matches are limited to their category's.
+     *
+     * @return bool
+     */
+    public function supports_category_scope(): bool {
+        return true;
+    }
+
+    /**
+     * Record the scope in the config, so the rule's processing applies it.
+     */
+    public function record_scope(): void {
+        if ($this->scope !== null) {
+            $this->set_config_data([self::SCOPE_KEY => (int) $this->scope->id] + $this->get_config_data());
+        }
+    }
+
+    /**
+     * Errors when the recorded scope is missing or wider than the scope.
+     *
+     * @return array
+     */
+    public function validate_scope(): array {
+        if ($this->scope === null) {
+            return [];
+        }
+
+        $recorded = $this->get_recorded_scope();
+        if (!$recorded || !$this->in_scope($recorded)) {
+            return [self::get_form_field() => get_string('outofscope', 'tool_dynamic_cohorts')];
+        }
+        return [];
+    }
+
+    /**
+     * The category context recorded by record_scope(), or null when none or gone.
+     *
+     * @return \core\context|null
+     */
+    protected function get_recorded_scope(): ?\core\context {
+        $contextid = (int) ($this->get_config_data()[self::SCOPE_KEY] ?? 0);
+        return $contextid ? (\core\context::instance_by_id($contextid, IGNORE_MISSING) ?: null) : null;
     }
 }

@@ -75,7 +75,7 @@ class course_completed extends condition_base {
      * @param \MoodleQuickForm $mform
      */
     public function config_form_add(\MoodleQuickForm $mform): void {
-        $mform->addElement('course', 'courseid', get_string('course'), ['onlywithcompletion' => true]);
+        $this->add_course_element($mform, 'courseid', get_string('course'), ['onlywithcompletion' => true]);
         $mform->addRule('courseid', null, 'required', null, 'client');
         $mform->setType('courseid', PARAM_INT);
 
@@ -106,6 +106,27 @@ class course_completed extends condition_base {
         }
 
         return $errors;
+    }
+
+    /**
+     * Available to category-level users: the course must lie under their category.
+     *
+     * @return bool
+     */
+    public function supports_category_scope(): bool {
+        return true;
+    }
+
+    /**
+     * Errors for a course outside the scope.
+     *
+     * @return array
+     */
+    public function validate_scope(): array {
+        if (!$this->course_in_scope($this->get_courseid_value())) {
+            return ['courseid' => get_string('outofscope', 'tool_dynamic_cohorts')];
+        }
+        return [];
     }
 
     /**

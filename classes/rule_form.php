@@ -96,9 +96,15 @@ class rule_form extends dynamic_form {
         $mform->setType('isconditionschanged', PARAM_BOOL);
         $mform->setDefault('isconditionschanged', 0);
 
+        // A category-level user is offered only the conditions available in a category.
+        $scoped = rule_access::condition_scope($this->get_context_for_dynamic_submission()) !== null;
+        $categoryconditions = $scoped ? condition_manager::category_conditions() : [];
+
         $conditions = ['' => get_string('choosedots')];
         foreach (condition_manager::get_all_conditions() as $class => $condition) {
-            $conditions[$class] = $condition->get_name();
+            if (!$scoped || in_array($class, $categoryconditions, true)) {
+                $conditions[$class] = $condition->get_name();
+            }
         }
 
         $group = [];
