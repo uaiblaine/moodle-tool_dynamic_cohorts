@@ -25,6 +25,7 @@
 use core_reportbuilder\system_report_factory;
 use tool_dynamic_cohorts\condition_form;
 use tool_dynamic_cohorts\local\rule_access;
+use tool_dynamic_cohorts\local\rules_page;
 use tool_dynamic_cohorts\rule;
 use tool_dynamic_cohorts\reportbuilder\local\systemreports\matching_users;
 
@@ -108,4 +109,14 @@ function tool_dynamic_cohorts_output_fragment_matching_users(array $args): strin
     );
 
     return $report->output();
+}
+
+/**
+ * Add the rules page to a course category's settings navigation.
+ *
+ * @param navigation_node $navigation The category's settings node.
+ * @param context_coursecat $context The category's context.
+ */
+function tool_dynamic_cohorts_extend_navigation_category_settings(navigation_node $navigation, context_coursecat $context): void {
+    rules_page::extend_category_navigation($navigation, $context);
 }

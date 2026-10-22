@@ -78,7 +78,13 @@ class rule_form extends dynamic_form {
         $mform->addHelpButton('cohortid', 'cohortid', 'tool_dynamic_cohorts');
         $mform->addRule('cohortid', get_string('required'), 'required', null, 'client');
 
-        $link = html_writer::link(new moodle_url('/cohort/index.php'), get_string('managecohorts', 'tool_dynamic_cohorts'));
+        // The cohorts of the category the rule is edited in, as core's cohort/index.php lists them.
+        $formcontext = $this->get_context_for_dynamic_submission();
+        $cohortsurl = new moodle_url(
+            '/cohort/index.php',
+            $formcontext->contextlevel == CONTEXT_COURSECAT ? ['contextid' => $formcontext->id] : []
+        );
+        $link = html_writer::link($cohortsurl, get_string('managecohorts', 'tool_dynamic_cohorts'));
         $mform->addElement('static', '', '', $link);
 
         // Hidden field for storing condition json string.

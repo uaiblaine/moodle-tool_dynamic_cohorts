@@ -39,6 +39,7 @@ $string['cachedef_conditionrecords'] = 'Conditions for a rule';
 $string['cachedef_matchinguserscount'] = 'Matching users count for a rule';
 $string['cachedef_rulesconditions'] = 'Rules with a specific condition';
 $string['cannotenablebrokenrule'] = 'A broken rule can\'t be enabled';
+$string['categorynavigation'] = 'Dynamic cohort rules';
 $string['cf_include_missing_data'] = 'Include cohorts with missing data.';
 $string['cf_include_missing_data_help'] = 'Cohorts may not have a custom field data set yet. This option includes those cohorts in the final result.';
 $string['cf_includingmissingdatadesc'] = '(including cohorts with missing data)';
