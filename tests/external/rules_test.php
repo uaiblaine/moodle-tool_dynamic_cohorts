@@ -87,6 +87,7 @@ final class rules_test extends externallib_advanced_testcase {
         $roleid = $generator->create_role();
         $systemcontext = \core\context\system::instance();
         assign_capability('tool/dynamic_cohorts:manage', CAP_ALLOW, $roleid, $systemcontext->id);
+        assign_capability('moodle/cohort:assign', CAP_ALLOW, $roleid, $systemcontext->id);
         assign_capability('tool/dynamic_cohorts:manage', CAP_PROHIBIT, $roleid, $categorycontext->id);
         role_assign($roleid, $user->id, $systemcontext->id);
         $this->setUser($user);

@@ -39,7 +39,6 @@ class condition_created extends base {
     protected function init() {
         $this->data['edulevel'] = self::LEVEL_OTHER;
         $this->data['crud'] = 'c';
-        $this->context = \context_system::instance();
     }
 
     /**

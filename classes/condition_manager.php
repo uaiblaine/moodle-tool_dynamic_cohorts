@@ -19,6 +19,7 @@ namespace tool_dynamic_cohorts;
 use core\event\base;
 use core_component;
 use moodle_exception;
+use tool_dynamic_cohorts\local\rule_access;
 use tool_dynamic_cohorts\event\condition_created;
 use tool_dynamic_cohorts\event\condition_deleted;
 use tool_dynamic_cohorts\event\condition_updated;
@@ -228,12 +229,15 @@ class condition_manager {
      * Delete conditions.
      *
      * @param \tool_dynamic_cohorts\condition[] $conditions A list of conditions to be deleted.
+     * @param \core\context|null $context Context of their events; null reads it from each condition's rule,
+     *     which a caller that has already deleted the rule must not rely on.
      */
-    public static function delete_conditions(array $conditions): void {
+    public static function delete_conditions(array $conditions, ?\core\context $context = null): void {
         foreach ($conditions as $condition) {
             if ($condition instanceof condition) {
                 $condition->delete();
                 self::trigger_condition_event(condition_deleted::class, $condition, [
+                    'context' => $context,
                     'other' => [
                         'ruleid' => $condition->get('ruleid'),
                     ],
@@ -247,13 +251,17 @@ class condition_manager {
      *
      * @param string $eventclass Full event class name, e.g. \tool_dynamic_cohorts\event\condition_updated.
      * @param condition $condition Related condition object.
-     * @param array $data Event related data.
+     * @param array $data Event related data; without a context, the context of the condition's rule.
      */
     private static function trigger_condition_event(string $eventclass, condition $condition, array $data): void {
         $instance = condition_base::get_instance(0, $condition->to_record());
 
         if (!isset($data['other']['ruleid'])) {
             $data['other']['ruleid'] = $condition->get('ruleid');
+        }
+
+        if (empty($data['context'])) {
+            $data['context'] = rule_access::context_for(rule::get_record(['id' => $condition->get('ruleid')]) ?: null);
         }
 
         // In case that the class related to that condition is not found,

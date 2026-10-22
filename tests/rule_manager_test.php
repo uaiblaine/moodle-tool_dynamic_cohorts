@@ -126,6 +126,8 @@ final class rule_manager_test extends \advanced_testcase {
      */
     #[DataProvider('process_rule_form_with_invalid_data_provider')]
     public function test_process_rule_form_with_invalid_data(array $formdata): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
         $this->expectException(moodle_exception::class);
         $this->expectExceptionMessage('Invalid rule data');
 
@@ -139,6 +141,7 @@ final class rule_manager_test extends \advanced_testcase {
         global $DB;
 
         $this->resetAfterTest();
+        $this->setAdminUser();
         $this->assertEquals(0, $DB->count_records(rule::TABLE));
 
         $cohort1 = $this->getDataGenerator()->create_cohort();
@@ -188,6 +191,7 @@ final class rule_manager_test extends \advanced_testcase {
         global $DB;
 
         $this->resetAfterTest();
+        $this->setAdminUser();
         $this->assertEquals(0, $DB->count_records(rule::TABLE));
 
         $cohort = $this->getDataGenerator()->create_cohort();
@@ -219,6 +223,8 @@ final class rule_manager_test extends \advanced_testcase {
      * Test trying to submit form data and sending not existing cohort.
      */
     public function test_process_rule_form_with_not_existing_cohort(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
         $this->expectException(moodle_exception::class);
         $this->expectExceptionMessage('Invalid rule data. Cohort is invalid: 999');
 
@@ -232,6 +238,7 @@ final class rule_manager_test extends \advanced_testcase {
      */
     public function test_process_rule_form_with_cohort_managed_by_other_component(): void {
         $this->resetAfterTest();
+        $this->setAdminUser();
 
         $cohort = $this->getDataGenerator()->create_cohort(['component' => 'mod_assign']);
         $this->expectException(moodle_exception::class);
@@ -249,6 +256,7 @@ final class rule_manager_test extends \advanced_testcase {
         global $DB;
 
         $this->resetAfterTest();
+        $this->setAdminUser();
 
         $cohort = $this->getDataGenerator()->create_cohort(['component' => 'tool_dynamic_cohorts']);
         $this->expectException(moodle_exception::class);
@@ -272,6 +280,7 @@ final class rule_manager_test extends \advanced_testcase {
         global $DB;
 
         $this->resetAfterTest();
+        $this->setAdminUser();
 
         $cohort = $this->getDataGenerator()->create_cohort();
 
@@ -294,6 +303,7 @@ final class rule_manager_test extends \advanced_testcase {
      */
     public function test_process_rule_form_triggers_events(): void {
         $this->resetAfterTest();
+        $this->setAdminUser();
 
         $cohort = $this->getDataGenerator()->create_cohort();
 
@@ -330,6 +340,7 @@ final class rule_manager_test extends \advanced_testcase {
      */
     public function test_process_rule_form_without_condition_data(): void {
         $this->resetAfterTest();
+        $this->setAdminUser();
 
         $cohort = $this->getDataGenerator()->create_cohort(['component' => 'tool_dynamic_cohorts']);
         $this->expectException(moodle_exception::class);
@@ -347,6 +358,7 @@ final class rule_manager_test extends \advanced_testcase {
         global $DB;
 
         $this->resetAfterTest();
+        $this->setAdminUser();
         $cohort = $this->getDataGenerator()->create_cohort();
 
         $this->assertEquals(0, $DB->count_records(rule::TABLE));
@@ -458,6 +470,7 @@ final class rule_manager_test extends \advanced_testcase {
         global $DB;
 
         $this->resetAfterTest();
+        $this->setAdminUser();
         // Otherwise the test's own transaction is the outermost one, and rolling back the
         // delegated transaction in process_form() is deferred until the test ends.
         $this->preventResetByRollback();

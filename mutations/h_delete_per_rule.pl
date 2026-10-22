@@ -1,2 +1,2 @@
-# H: drop the per-rule capability check in delete_rules().
-s{\n            require_capability\('tool/dynamic_cohorts:manage', \$rule->get_context\(\)\);\n}{\n}s;
+# H: drop the per-rule access check in delete_rules().
+s{\n            rule_access::require_manage\(\$context\);\n}{\n}s;
