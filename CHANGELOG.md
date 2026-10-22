@@ -7,7 +7,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This is a fork of [catalyst/moodle-tool_dynamic_cohorts](https://github.com/catalyst/moodle-tool_dynamic_cohorts).
 Entries below cover the fork only; upstream history lives in that repository.
 
-## [Unreleased]
+## [v5.2-r2] - 2026-10-22
+
+Second release of this fork for Moodle 5.2 ($plugin->version = 2026042003). Rules can now be managed
+in a course category: see "Managing rules in a course category" in the README.
 
 Stages S0 to S3 of the category-context plan (`docs/category-context/PLAN.md` on `main`). S0
 fixed three defects that were harmless while the capability could only be granted site-wide and
@@ -49,6 +52,7 @@ the conditions a category-level user writes inside that category.
   only in the system or a course category context and, below the system level, lists that
   context's subtree whatever context core's report services are asked for.
 - Test data generators (`tests/generator/`), with a Behat entity for rules.
+- README: managing rules in a course category.
 - `mutations/gates.conf`: the mutation spec for these guards (`mdl mutate`), gates A-Z, AA-AZ and BA.
 
 ### Changed
