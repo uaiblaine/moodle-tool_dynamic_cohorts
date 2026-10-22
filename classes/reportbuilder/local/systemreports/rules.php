@@ -16,16 +16,15 @@
 
 namespace tool_dynamic_cohorts\reportbuilder\local\systemreports;
 
-use context;
-use context_system;
 use core_cohort\reportbuilder\local\entities\cohort;
+use core_reportbuilder\local\helpers\database;
 use core_reportbuilder\local\report\action;
 use core_reportbuilder\local\report\column;
 use core_reportbuilder\system_report;
 use tool_dynamic_cohorts\local\rule_access;
+use tool_dynamic_cohorts\local\rules_page;
 use tool_dynamic_cohorts\reportbuilder\local\entities\rule_entity;
 use lang_string;
-use moodle_url;
 use tool_dynamic_cohorts\rule;
 use pix_icon;
 use tool_dynamic_cohorts\rule_manager;
@@ -44,18 +43,36 @@ class rules extends system_report {
      * @return void
      */
     protected function initialise(): void {
+        global $DB;
+
         $ruleentity = new rule_entity();
         $rulealias = $ruleentity->get_table_alias('tool_dynamic_cohorts');
         $this->set_main_table('tool_dynamic_cohorts', $rulealias);
         $this->add_entity($ruleentity);
 
-        // Any columns required by actions should be defined here to ensure they're always available.
-        $this->add_base_fields("{$rulealias}.id, {$rulealias}.enabled");
-
         $cohortentity = new cohort();
         $cohortalias = $cohortentity->get_table_alias('cohort');
+        /* LEFT, so a rule whose cohort was deleted is still listed on the system page, the only
+           place it can be managed (rule_access decides it there). */
         $this->add_entity($cohortentity
-             ->add_join("JOIN {cohort} {$cohortalias} ON {$cohortalias}.id = {$rulealias}.cohortid"));
+             ->add_join("LEFT JOIN {cohort} {$cohortalias} ON {$cohortalias}.id = {$rulealias}.cohortid"));
+
+        // Any columns required by actions should be defined here to ensure they're always available.
+        $this->add_base_fields("{$rulealias}.id, {$rulealias}.enabled, {$cohortalias}.contextid AS cohortcontextid");
+
+        /* Below the system level, the rules whose cohort lives in the context or below it; never an
+           orphan. Any level, not only a category: core's retrieve service lets the client pick the
+           report's context, and can_view() refusing other levels must not be the only line. */
+        $context = $this->get_context();
+        if ($context->contextlevel != CONTEXT_SYSTEM) {
+            [$idparam, $pathparam] = database::generate_param_names(2);
+            $this->add_base_condition_sql(
+                "EXISTS (SELECT 1 FROM {context} rulectx
+                          WHERE rulectx.id = {$cohortalias}.contextid
+                            AND (rulectx.id = :{$idparam} OR " . $DB->sql_like('rulectx.path', ":{$pathparam}") . "))",
+                [$idparam => $context->id, $pathparam => $DB->sql_like_escape($context->path) . '/%']
+            );
+        }
 
         $this->add_column_from_entity('rule_entity:name');
         $this->add_column_from_entity('rule_entity:description');
@@ -128,21 +145,16 @@ class rules extends system_report {
     }
 
     /**
-     * Returns report context.
-     *
-     * @return \context
-     */
-    public function get_context(): context {
-        return context_system::instance();
-    }
-
-    /**
      * Check if can view this system report.
      *
      * @return bool
      */
     protected function can_view(): bool {
-        return rule_access::can_manage($this->get_context());
+        /* Only the levels the rules page exists at. A course inside a managed category inherits
+           both capabilities, and the client chooses the context on core's retrieve service. */
+        $context = $this->get_context();
+        return in_array($context->contextlevel, [CONTEXT_SYSTEM, CONTEXT_COURSECAT], true)
+            && rule_access::can_manage($context);
     }
 
     /**
@@ -152,40 +164,57 @@ class rules extends system_report {
      */
     protected function add_actions(): void {
         $this->add_action((new action(
-            new moodle_url('/admin/tool/dynamic_cohorts/index.php'),
+            rules_page::url($this->get_context()),
             new pix_icon('t/hide', '', 'core'),
             ['class' => 'tool-dynamic-cohorts-rule-toggle', 'data-ruleid' => ':id', 'data-action' => 'enable'],
             false,
             new lang_string('enable')
         ))->add_callback(function (\stdClass $row): bool {
-            return empty($row->enabled);
+            return empty($row->enabled) && self::can_manage_row($row);
         }));
 
         $this->add_action((new action(
-            new moodle_url('/admin/tool/dynamic_cohorts/index.php'),
+            rules_page::url($this->get_context()),
             new pix_icon('t/show', '', 'core'),
             ['class' => 'tool-dynamic-cohorts-rule-toggle', 'data-ruleid' => ':id', 'data-action' => 'disable'],
             false,
             new lang_string('disable')
         ))->add_callback(function (\stdClass $row): bool {
-            return !empty($row->enabled);
+            return !empty($row->enabled) && self::can_manage_row($row);
         }));
 
         $this->add_action((new action(
-            new moodle_url('/admin/tool/dynamic_cohorts/index.php'),
+            rules_page::url($this->get_context()),
             new pix_icon('t/edit', '', 'core'),
             ['class' => 'tool-dynamic-cohorts-rule-edit', 'data-ruleid' => ':id'],
             false,
             new lang_string('edit')
-        )));
+        ))->add_callback(fn(\stdClass $row): bool => self::can_manage_row($row)));
 
         $this->add_action((new action(
-            new moodle_url('/admin/tool/dynamic_cohorts/index.php'),
+            rules_page::url($this->get_context()),
             new pix_icon('t/delete', '', 'core'),
             ['class' => 'tool-dynamic-cohorts-rule-delete', 'data-ruleid' => ':id', 'data-action' => 'delete'],
             false,
             new lang_string('delete')
-        )));
+        ))->add_callback(fn(\stdClass $row): bool => self::can_manage_row($row)));
+    }
+
+    /**
+     * Whether the current user may manage the rule of a row, in its own cohort's context.
+     *
+     * The page's context is not enough: a capability prohibited in a subcategory keeps that
+     * subcategory's rules listed on the parent's page, but without actions.
+     *
+     * @param \stdClass $row Report row with the base field cohortcontextid.
+     * @return bool
+     */
+    private static function can_manage_row(\stdClass $row): bool {
+        $context = $row->cohortcontextid
+            ? \core\context::instance_by_id((int) $row->cohortcontextid, IGNORE_MISSING)
+            : false;
+
+        return rule_access::can_manage($context ?: \core\context\system::instance());
     }
 
     /**
