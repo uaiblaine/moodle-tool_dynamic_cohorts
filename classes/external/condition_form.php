@@ -16,7 +16,6 @@
 
 namespace tool_dynamic_cohorts\external;
 
-use context_system;
 use moodle_exception;
 use core_external\external_api;
 use core_external\external_function_parameters;
@@ -24,6 +23,7 @@ use core_external\external_single_structure;
 use core_external\external_value;
 use tool_dynamic_cohorts\condition_base;
 use tool_dynamic_cohorts\condition_form as form;
+use tool_dynamic_cohorts\local\rule_access;
 
 /**
  * Condition form AJAX submission.
@@ -41,6 +41,12 @@ class condition_form extends external_api {
         return new external_function_parameters([
             'classname' => new external_value(PARAM_RAW, 'The condition class being submitted'),
             'jsonformdata' => new external_value(PARAM_RAW, 'The data from the form, encoded as a json array'),
+            'contextid' => new external_value(
+                PARAM_INT,
+                'System or course category context the rule is edited from; 0 for the system context',
+                VALUE_DEFAULT,
+                0
+            ),
         ]);
     }
 
@@ -49,17 +55,20 @@ class condition_form extends external_api {
      *
      * @param string $classname Condition class name.
      * @param string $jsonformdata The data from the form, encoded as a json array.
+     * @param int $contextid System or course category context the rule is edited from, 0 for the system.
      * @return array
      */
-    public static function submit(string $classname, string $jsonformdata): array {
+    public static function submit(string $classname, string $jsonformdata, int $contextid = 0): array {
         $params = self::validate_parameters(
             self::submit_parameters(),
-            ['classname' => $classname, 'jsonformdata' => $jsonformdata]
+            ['classname' => $classname, 'jsonformdata' => $jsonformdata, 'contextid' => $contextid]
         );
 
-        // Always in a system context.
-        self::validate_context(context_system::instance());
-        require_capability('tool/dynamic_cohorts:manage', context_system::instance());
+        /* Only the page the condition modal opens from is known here: the rule's cohort can still
+           change before the rule is saved, and rule_manager::process_form() decides on that. */
+        $context = rule_access::context_from_id($params['contextid']);
+        self::validate_context($context);
+        rule_access::require_manage($context);
 
         $ajaxdata = [];
         if (!empty($params['jsonformdata'])) {

@@ -20,7 +20,7 @@ use core_form\dynamic_form;
 use html_writer;
 use moodle_url;
 use context;
-use context_system;
+use tool_dynamic_cohorts\local\rule_access;
 use dml_missing_record_exception;
 use stdClass;
 
@@ -48,6 +48,11 @@ class rule_form extends dynamic_form {
         $mform->addElement('hidden', 'id');
         $mform->setType('id', PARAM_INT);
         $mform->setDefault('id', 0);
+
+        // The page the form opens from, for a new rule: get_context_for_dynamic_submission().
+        $mform->addElement('hidden', 'contextid');
+        $mform->setType('contextid', PARAM_INT);
+        $mform->setDefault('contextid', 0);
 
         $mform->addElement('text', 'name', get_string('name', 'tool_dynamic_cohorts'), 'size="50"');
         $mform->setType('name', PARAM_TEXT);
@@ -152,7 +157,7 @@ class rule_form extends dynamic_form {
         $options = ['' => get_string('choosedots')];
 
         // Retrieve only available cohorts to display in the select.
-        foreach (cohort_manager::get_cohorts(true) as $cohort) {
+        foreach (cohort_manager::get_cohorts(true, $this->get_context_for_dynamic_submission()) as $cohort) {
             $options[$cohort->id] = $cohort->name;
         }
 
@@ -207,12 +212,22 @@ class rule_form extends dynamic_form {
     }
 
     /**
-     * Form context.
+     * Form context: an existing rule's cohort context, else the page the form opens from.
+     *
+     * The submitted contextid only picks where a NEW rule's cohort list starts; saving is decided
+     * on the cohorts themselves in rule_manager::process_form().
      *
      * @return context
      */
     protected function get_context_for_dynamic_submission(): context {
-        return context_system::instance();
+        // A rule id that resolves to nothing is decided in the system context, before get_rule()
+        // would tell the caller the id does not exist.
+        $ruleid = (int) ($this->_ajaxformdata['id'] ?? 0);
+        if (!empty($ruleid)) {
+            return rule_access::context_for(rule::get_record(['id' => $ruleid]) ?: null);
+        }
+
+        return rule_access::context_from_id((int) ($this->_ajaxformdata['contextid'] ?? 0));
     }
 
     /**
@@ -221,7 +236,7 @@ class rule_form extends dynamic_form {
      * @return void
      */
     protected function check_access_for_dynamic_submission(): void {
-        require_capability('tool/dynamic_cohorts:manage', $this->get_context_for_dynamic_submission());
+        rule_access::require_manage($this->get_context_for_dynamic_submission());
     }
 
     /**
@@ -239,7 +254,9 @@ class rule_form extends dynamic_form {
      * @return void
      */
     public function set_data_for_dynamic_submission(): void {
-        $this->set_data(rule_manager::build_data_for_form($this->get_rule()));
+        $data = rule_manager::build_data_for_form($this->get_rule());
+        $data['contextid'] = (int) ($this->_ajaxformdata['contextid'] ?? 0);
+        $this->set_data($data);
     }
 
     /**
