@@ -54,6 +54,15 @@ class user_profile_interests extends condition_base {
     }
 
     /**
+     * Available to category-level users: it refers to nothing outside the user (D2).
+     *
+     * @return bool
+     */
+    public function supports_category_scope(): bool {
+        return true;
+    }
+
+    /**
      * Condition name.
      *
      * @return string

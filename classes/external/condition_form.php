@@ -76,7 +76,8 @@ class condition_form extends external_api {
             parse_str($serialiseddata, $ajaxdata);
         }
 
-        $mform = new form(null, ['classname' => $classname], 'post', '', null, true, $ajaxdata);
+        $customdata = ['classname' => $classname, 'scope' => rule_access::condition_scope($context)];
+        $mform = new form(null, $customdata, 'post', '', null, true, $ajaxdata);
         if (!$mform->is_validated()) {
             throw new moodle_exception('invaliddata');
         }
