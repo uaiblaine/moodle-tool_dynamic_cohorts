@@ -121,7 +121,9 @@ There is also a global admin setting that allows administrator to enable or disa
 1. At least one manually created cohort (See _Site administration > Users > Cohorts_)
 
 ## Creating a rule
-1. Navigate to _Site administration > Users > Accounts > Dynamic cohorts > Manage rules_
+1. Navigate to _Site administration > Users > Accounts > Dynamic cohorts > Manage rules_ (or, for
+   the cohorts of one course category, to that category's rules page: see
+   [Managing rules in a course category](#managing-rules-in-a-course-category))
 2. Press the "Add a new rule" button
 3. From this form you can specify the cohort users will be added to, and add any conditions available in your system. As metioned above, a user must match **all** conditions to be added to the cohort
 4. Press the "Save changes" button
@@ -131,6 +133,49 @@ You will be directed to the manage rules page where you can review your rule bef
 **Note:** It is important to review your new rule to make sure it is configured properly. Consider carefully how many users are affected by the rule (displayed in the table) before enabling it. For rules operating on large sets of users see [rule processing options](#rule-processing-options)
 
 Any subsequent edits to a rule will disable it and require you to review and re-enable it.
+
+## Managing rules in a course category
+
+Rules can be managed by someone who is not a site administrator, for the cohorts of one course
+category and its subcategories only. A rule belongs to the context of the cohort it fills, so a role
+held in a category reaches the rules of that category's cohorts and nothing else.
+
+### Granting it
+
+1. Create a role (_Site administration > Users > Permissions > Define roles_), or use an existing
+   category-level one such as Manager, and allow, in that role:
+    - `tool/dynamic_cohorts:manage`, and
+    - `moodle/cohort:assign` (a rule changes the cohort's membership, so both are required; the
+      core Manager role already has it).
+2. Make the role assignable at the _Category_ context level.
+3. Assign it to the user in the course category (_the category > More > Assign roles_).
+
+The user then finds **Dynamic cohort rules** in the category's _More_ menu. The page lists the
+rules whose cohort lives in the category or below it. A rule in a subcategory where either
+capability is prohibited is listed without its actions. Cohorts themselves are created and edited
+as usual (_the category > More > Cohorts_, which needs `moodle/cohort:manage`).
+
+### What a category-level user can do
+
+- Pick only cohorts of the category (or its subcategories) that they may assign to.
+- Use only the conditions enabled in the setting _Conditions available in course categories_
+  (_Site administration > Users > Accounts > Dynamic cohorts > Settings_). Every built-in condition
+  is enabled by default; conditions from other plugins stay off until they support categories.
+- Refer only to what lies in the category. Course conditions take its courses. The role condition
+  takes the category or one of its courses, never the system level. Cohort conditions take the
+  category's cohorts and the visible cohorts above it. Profile conditions offer identity and
+  hidden fields only where core would show them to that user. A rule cannot be moved to another
+  cohort while one of its conditions reaches outside that cohort's category.
+- Not save a rule that holds a condition reaching outside the category (for example, one an
+  administrator wrote). They have to remove that condition first. Enabling, disabling and
+  deleting the rule still work.
+
+A site administrator, or anyone holding both capabilities in the system context, is not limited by
+any of this and keeps managing every rule from site administration.
+
+**Note:** the matching-users list still shows each matched user's username, email address and ID
+number, as it does for administrators. Grant the role only to people who may see those details for
+the users your rules select.
 
 ## Rule processing options
 Rules are processed regularly by cron; by default cron will add each user to the specified cohort one by one. For large sets of users, this can take a long time and potentially block other cron tasks.
@@ -193,10 +238,13 @@ Task processing is orchestrated by a simple mechanism:
 
 # Capabilities
 
-`tool/dynamic_cohorts:manage` (system context) — create, edit, enable, disable and delete
-rules, and view the list of users a rule matches. It carries `RISK_PERSONAL`: the matching
-users report lists every matched user's username, email address and ID number, and can be
-downloaded. No role holds it by default, so it is admin-only until granted explicitly.
+`tool/dynamic_cohorts:manage` (system or course category context) — create, edit, enable, disable
+and delete rules, and view the list of users a rule matches. Each rule is decided in the context of
+the cohort it fills, and it also needs `moodle/cohort:assign` there (see
+[Managing rules in a course category](#managing-rules-in-a-course-category)). It carries
+`RISK_PERSONAL`: the matching users report lists every matched user's username, email address and
+ID number, and can be downloaded. No role holds it by default, so it is admin-only until granted
+explicitly.
 
 # Privacy
 
