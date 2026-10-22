@@ -52,7 +52,7 @@ page itself is still the site administration page; reaching it from a category i
 
 ### Added
 
-- `mutations/gates.conf`: the mutation spec for these guards (`mdl mutate`), gates A-X.
+- `mutations/gates.conf`: the mutation spec for these guards (`mdl mutate`), gates A-Z and AA.
 
 ## [v5.3-r1] - 2026-10-18
 
