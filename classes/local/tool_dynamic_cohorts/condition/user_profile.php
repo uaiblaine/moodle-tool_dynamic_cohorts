@@ -120,6 +120,62 @@ class user_profile extends condition_base {
     }
 
     /**
+     * Available to category-level users, with the identity fields they may see there only.
+     *
+     * The subclasses (auth_method, user_custom_profile) inherit both this and validate_scope().
+     *
+     * @return bool
+     */
+    public function supports_category_scope(): bool {
+        return true;
+    }
+
+    /**
+     * Errors for a configured field the scope does not offer (get_fields_info() is scoped).
+     *
+     * @return array
+     */
+    public function validate_scope(): array {
+        if ($this->scope === null) {
+            return [];
+        }
+
+        $field = $this->get_config_data()[static::get_form_field()] ?? '';
+        if (!array_key_exists($field, $this->get_fields_info())) {
+            return ['fieldgroup' => get_string('outofscope', 'tool_dynamic_cohorts')];
+        }
+        return [];
+    }
+
+    /**
+     * Whether a standard field may be matched in the scope.
+     *
+     * Matching is a way of reading the value, so a category-level user matches only on what core
+     * would show them. Username, email and idnumber identify a person: only where they are identity
+     * fields in the category ($CFG->showuseridentity and moodle/site:viewuseridentity there). A field
+     * the site hides ($CFG->hiddenuserfields): only with moodle/user:viewhiddendetails over every
+     * user, that is, in the system context.
+     *
+     * @param string $field Standard field name.
+     * @return bool
+     */
+    protected function standard_field_in_scope(string $field): bool {
+        global $CFG;
+
+        if ($this->scope === null) {
+            return true;
+        }
+        $hidden = in_array($field, explode(',', (string) ($CFG->hiddenuserfields ?? '')), true);
+        if ($hidden && !has_capability('moodle/user:viewhiddendetails', \core\context\system::instance())) {
+            return false;
+        }
+        if (!in_array($field, ['username', 'email', 'idnumber'], true)) {
+            return true;
+        }
+        return in_array($field, \core_user\fields::get_identity_fields($this->scope, false), true);
+    }
+
+    /**
      * Returns a list of all fields with extra data (shortname, name, datatype, param1 and type).
      *
      * @return \stdClass[]
@@ -128,6 +184,10 @@ class user_profile extends condition_base {
         $fields = [];
 
         foreach (self::SUPPORTED_STANDARD_FIELDS as $field) {
+            if (!$this->standard_field_in_scope($field)) {
+                continue;
+            }
+
             $fields[$field] = new \stdClass();
             $fields[$field]->shortname = $field;
 

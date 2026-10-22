@@ -60,12 +60,24 @@ class condition_form extends moodleform {
             throw new coding_exception('Condition class name is not set');
         }
 
+        $classname = $this->_customdata['classname'];
         $conditions = condition_manager::get_all_conditions(false);
-        if (!array_key_exists($this->_customdata['classname'], $conditions)) {
+        if (!array_key_exists($classname, $conditions)) {
             throw new moodle_exception('Condition is broken. Invalid condition class.');
         }
 
-        return $conditions[$this->_customdata['classname']];
+        // A copy: get_all_conditions() memoises its instances, and the scope is this form's alone.
+        $condition = clone $conditions[$classname];
+
+        /* customdata 'scope' is the category a category-level user writes the condition for
+           (rule_access::condition_scope()); the options and the validation follow it. */
+        $scope = $this->_customdata['scope'] ?? null;
+        if ($scope !== null && !in_array($classname, condition_manager::category_conditions(), true)) {
+            throw new moodle_exception('conditionnotincategory', 'tool_dynamic_cohorts', '', $condition->get_name());
+        }
+        $condition->set_scope($scope);
+
+        return $condition;
     }
 
     /**
@@ -78,6 +90,14 @@ class condition_form extends moodleform {
     public function validation($data, $files) {
         $errors = parent::validation($data, $files);
 
-        return array_merge($errors, $this->get_condition()->config_form_validate($data));
+        $condition = $this->get_condition();
+        $errors = array_merge($errors, $condition->config_form_validate($data));
+        if (empty($errors)) {
+            // The scope check reads the config the form would store.
+            $condition->set_config_data($condition::retrieve_config_data((object) $data));
+            $errors = $condition->validate_scope();
+        }
+
+        return $errors;
     }
 }

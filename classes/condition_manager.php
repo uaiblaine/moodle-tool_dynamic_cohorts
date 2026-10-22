@@ -85,6 +85,38 @@ class condition_manager {
     }
 
     /**
+     * Whether a condition class ships with this plugin.
+     *
+     * @param string $classname Condition class name, with or without a leading backslash.
+     * @return bool
+     */
+    public static function is_builtin(string $classname): bool {
+        return str_starts_with(ltrim($classname, '\\'), 'tool_dynamic_cohorts\\local\\tool_dynamic_cohorts\\condition\\');
+    }
+
+    /**
+     * Class names of the conditions a category-level user may use.
+     *
+     * Those that scope their referents (condition_base::supports_category_scope()) and that the
+     * setting categoryconditions enables; until that setting is saved, every built-in one (D3).
+     *
+     * @return string[]
+     */
+    public static function category_conditions(): array {
+        $setting = get_config('tool_dynamic_cohorts', 'categoryconditions');
+        $enabled = $setting === false ? null : array_filter(explode(',', (string) $setting));
+
+        $result = [];
+        foreach (self::get_all_conditions(false) as $classname => $condition) {
+            $allowed = $enabled === null ? self::is_builtin($classname) : in_array($classname, $enabled, true);
+            if ($allowed && $condition->supports_category_scope()) {
+                $result[] = $classname;
+            }
+        }
+        return $result;
+    }
+
+    /**
      * Process conditions for submitted rule.
      *
      * @param rule $rule Rule instance/
@@ -92,39 +124,51 @@ class condition_manager {
      * @throws moodle_exception When a submitted condition is refused; nothing is written then.
      */
     public static function process_form(rule $rule, \stdClass $formdata): void {
-        if (!empty($formdata->isconditionschanged)) {
-            $oldconditions = $rule->get_condition_records();
-            $submittedconditions = self::process_condition_json($formdata->conditionjson, $oldconditions);
+        // Decided on the cohort the rule now fills, not on the page the form came from.
+        $scope = rule_access::condition_scope($rule->get_context());
 
-            $toupdate = [];
-            foreach ($submittedconditions as $condition) {
-                if (empty($condition->get('id'))) {
-                    $condition->set('ruleid', $rule->get('id'));
-                    $condition->create();
-                    self::trigger_condition_event(condition_created::class, $condition, []);
-                } else {
-                    $toupdate[$condition->get('id')] = $condition;
+        if (empty($formdata->isconditionschanged)) {
+            /* The conditions stay, but the rule may have moved to another cohort: a category-level
+               user cannot keep a condition that reaches outside the new cohort's category. */
+            if ($scope !== null) {
+                foreach ($rule->get_condition_records() as $condition) {
+                    self::check_condition_scope($condition, $scope);
                 }
             }
+            return;
+        }
 
-            $todelete = array_diff_key($oldconditions, $toupdate);
-            self::delete_conditions($todelete);
+        $oldconditions = $rule->get_condition_records();
+        $submittedconditions = self::process_condition_json($formdata->conditionjson, $oldconditions, $scope);
 
-            foreach ($toupdate as $conditiontoupdate) {
-                $olddescription = $conditiontoupdate->get('configdata');
-                $instance = condition_base::get_instance(0, $conditiontoupdate->to_record());
-                if ($instance && !$instance->is_broken()) {
-                    $olddescription = $instance->get_config_description();
-                }
-
-                $conditiontoupdate->save();
-
-                self::trigger_condition_event(condition_updated::class, $conditiontoupdate, [
-                    'other' => [
-                        'olddescription' => $olddescription,
-                    ],
-                ]);
+        $toupdate = [];
+        foreach ($submittedconditions as $condition) {
+            if (empty($condition->get('id'))) {
+                $condition->set('ruleid', $rule->get('id'));
+                $condition->create();
+                self::trigger_condition_event(condition_created::class, $condition, []);
+            } else {
+                $toupdate[$condition->get('id')] = $condition;
             }
+        }
+
+        $todelete = array_diff_key($oldconditions, $toupdate);
+        self::delete_conditions($todelete);
+
+        foreach ($toupdate as $conditiontoupdate) {
+            $olddescription = $conditiontoupdate->get('configdata');
+            $instance = condition_base::get_instance(0, $conditiontoupdate->to_record());
+            if ($instance && !$instance->is_broken()) {
+                $olddescription = $instance->get_config_description();
+            }
+
+            $conditiontoupdate->save();
+
+            self::trigger_condition_event(condition_updated::class, $conditiontoupdate, [
+                'other' => [
+                    'olddescription' => $olddescription,
+                ],
+            ]);
         }
     }
 
@@ -136,11 +180,12 @@ class condition_manager {
      *
      * @param string $formjson Conditions JSON string from the rule form.
      * @param array $ruleconditions The rule's stored condition persistents, keyed by id.
+     * @param \core\context|null $scope Category scope of a category-level user, or null.
      *
      * @return condition[]
      * @throws moodle_exception When a condition belongs to another rule or fails validation.
      */
-    private static function process_condition_json(string $formjson, array $ruleconditions): array {
+    private static function process_condition_json(string $formjson, array $ruleconditions, ?\core\context $scope): array {
         // Get only required fields for condition persistent.
         $requiredconditionfield = array_diff(
             array_keys(condition::properties_definition()),
@@ -180,7 +225,10 @@ class condition_manager {
                 && $stored->get('classname') === $condition->get('classname')
                 && $stored->get('configdata') === $condition->get('configdata');
             if (!$unchanged) {
-                self::validate_submitted_condition($condition);
+                self::validate_submitted_condition($condition, $scope);
+            } else if ($scope !== null) {
+                // Unchanged is not exempt from the scope: an administrator may have written it.
+                self::check_condition_scope($condition, $scope);
             }
 
             $conditions[] = $condition;
@@ -198,22 +246,48 @@ class condition_manager {
      * every event, and core does not catch an \Error (a TypeError from a getter) raised there.
      *
      * @param condition $condition Submitted condition, not yet saved.
-     * @throws moodle_exception When the class is unknown or the config data is invalid.
+     * @param \core\context|null $scope Category scope of a category-level user, or null.
+     * @throws moodle_exception When the class is unknown, not available in a category, the config
+     *     data is invalid, or a referent lies outside the scope.
      */
-    private static function validate_submitted_condition(condition $condition): void {
+    private static function validate_submitted_condition(condition $condition, ?\core\context $scope): void {
         // Discovered class names carry no leading backslash; stored ones may (tests write them so).
         $classname = ltrim((string) $condition->get('classname'), '\\');
         if (!array_key_exists($classname, self::get_all_conditions(false))) {
             throw new moodle_exception('Invalid rule data. Unknown condition: ' . $classname);
         }
 
-        $configdata = json_decode((string) $condition->get('configdata'), true);
         $instance = condition_base::get_instance(0, $condition->to_record());
 
-        // Config data that is not a JSON object fails config_form_validate()'s array type here too.
+        if ($scope !== null) {
+            self::require_category_condition($classname, $instance);
+            $instance->set_scope($scope);
+            /* Server-side, whatever the client sent: a condition that needs its scope while the
+               rule is processed gets it from here, and the persistent is saved with it. Config data
+               that is not a JSON object fails here already (get_config_data() is array-typed). */
+            try {
+                $instance->record_scope();
+                $condition->set('configdata', json_encode($instance->get_config_data()));
+            } catch (\Throwable $exception) {
+                throw new moodle_exception('Invalid rule data. Invalid config data for condition: ' . $classname);
+            }
+            $instance->set_scope(null);
+        }
+
+        $configdata = json_decode((string) $condition->get('configdata'), true);
+        $scopeerrors = [];
+
+        /* Valid config first, unscoped, then the scope: a field the category does not offer is
+           reported as outside the category, not as invalid. Config data that is not a JSON
+           object fails config_form_validate()'s array type here too. */
         try {
             $errors = $instance->config_form_validate($configdata);
-            if (empty($errors) && !$instance->is_broken()) {
+            if (empty($errors) && $scope !== null) {
+                $instance->set_scope($scope);
+                $scopeerrors = $instance->validate_scope();
+                $instance->set_scope(null);
+            }
+            if (empty($errors) && empty($scopeerrors) && !$instance->is_broken()) {
                 $instance->get_sql();
             }
         } catch (\Throwable $exception) {
@@ -222,6 +296,51 @@ class condition_manager {
 
         if (!empty($errors)) {
             throw new moodle_exception('Invalid rule data. Invalid config data for condition: ' . $classname);
+        }
+        if (!empty($scopeerrors)) {
+            throw new moodle_exception('conditionoutofscope', 'tool_dynamic_cohorts', '', $instance->get_name());
+        }
+    }
+
+    /**
+     * Require a stored condition of a rule to stay within a category-level user's scope.
+     *
+     * A condition whose class is gone is left alone: it is broken, matches nobody, and the rule
+     * is saved and marked broken as before.
+     *
+     * @param condition $condition A stored condition.
+     * @param \core\context $scope Category scope.
+     * @throws moodle_exception When the condition is not available in a category or reaches outside it.
+     */
+    private static function check_condition_scope(condition $condition, \core\context $scope): void {
+        $instance = condition_base::get_instance(0, $condition->to_record());
+        if (!$instance) {
+            return;
+        }
+
+        self::require_category_condition(ltrim((string) $condition->get('classname'), '\\'), $instance);
+        $instance->set_scope($scope);
+
+        try {
+            $errors = $instance->validate_scope();
+        } catch (\Throwable $exception) {
+            $errors = [$exception->getMessage()];
+        }
+        if (!empty($errors)) {
+            throw new moodle_exception('conditionoutofscope', 'tool_dynamic_cohorts', '', $instance->get_name());
+        }
+    }
+
+    /**
+     * Require a condition class to be available to category-level users.
+     *
+     * @param string $classname Condition class name without a leading backslash.
+     * @param condition_base $instance The condition, for its name.
+     * @throws moodle_exception When it is not.
+     */
+    private static function require_category_condition(string $classname, condition_base $instance): void {
+        if (!in_array($classname, self::category_conditions(), true)) {
+            throw new moodle_exception('conditionnotincategory', 'tool_dynamic_cohorts', '', $instance->get_name());
         }
     }
 
