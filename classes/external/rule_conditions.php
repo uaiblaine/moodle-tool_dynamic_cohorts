@@ -16,13 +16,13 @@
 
 namespace tool_dynamic_cohorts\external;
 
-use context_system;
 use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_value;
 use core_external\external_multiple_structure;
 use core_external\external_single_structure;
 use tool_dynamic_cohorts\condition_base;
+use tool_dynamic_cohorts\local\rule_access;
 use tool_dynamic_cohorts\rule;
 use invalid_parameter_exception;
 
@@ -54,10 +54,10 @@ class rule_conditions extends external_api {
     public static function get_conditions(int $ruleid): array {
         $params = self::validate_parameters(self::get_conditions_parameters(), ['ruleid' => $ruleid]);
 
-        self::validate_context(context_system::instance());
-        require_capability('tool/dynamic_cohorts:manage', context_system::instance());
-
-        $rule = rule::get_record(['id' => $params['ruleid']]);
+        $rule = rule::get_record(['id' => $params['ruleid']]) ?: null;
+        $context = rule_access::context_for($rule);
+        self::validate_context($context);
+        rule_access::require_manage($context);
 
         if (empty($rule)) {
             throw new invalid_parameter_exception('Rule does not exist');

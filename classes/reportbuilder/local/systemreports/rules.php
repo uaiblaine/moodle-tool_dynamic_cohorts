@@ -22,6 +22,7 @@ use core_cohort\reportbuilder\local\entities\cohort;
 use core_reportbuilder\local\report\action;
 use core_reportbuilder\local\report\column;
 use core_reportbuilder\system_report;
+use tool_dynamic_cohorts\local\rule_access;
 use tool_dynamic_cohorts\reportbuilder\local\entities\rule_entity;
 use lang_string;
 use moodle_url;
@@ -141,7 +142,7 @@ class rules extends system_report {
      * @return bool
      */
     protected function can_view(): bool {
-        return has_capability('tool/dynamic_cohorts:manage', $this->get_context());
+        return rule_access::can_manage($this->get_context());
     }
 
     /**

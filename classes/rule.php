@@ -115,12 +115,7 @@ class rule extends persistent {
      * @return \core\context
      */
     public function get_context(): \core\context {
-        global $DB;
-
-        $contextid = $DB->get_field('cohort', 'contextid', ['id' => $this->get('cohortid')]);
-        $context = $contextid ? \core\context::instance_by_id((int) $contextid, IGNORE_MISSING) : false;
-
-        return $context ?: \core\context\system::instance();
+        return \tool_dynamic_cohorts\local\rule_access::context_for_cohort((int) $this->get('cohortid'));
     }
 
     /**
