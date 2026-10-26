@@ -78,12 +78,69 @@ class cohort_membership extends condition_base {
     protected function get_all_cohorts(): array {
         if (is_null($this->allcohorts)) {
             $this->allcohorts = [];
-            foreach (cohort_manager::get_cohorts() as $cohort) {
+            // A category-level user picks among the cohorts usable from the category only.
+            $cohorts = $this->scope === null ? cohort_manager::get_cohorts() : $this->get_scoped_cohorts();
+            foreach ($cohorts as $cohort) {
                 $this->allcohorts[$cohort->id] = $cohort->name;
             }
         }
 
         return $this->allcohorts;
+    }
+
+    /**
+     * Set the scope, and forget a cohort list built for another one.
+     *
+     * @param \core\context|null $scope Course category context, or null when unscoped.
+     */
+    public function set_scope(?\core\context $scope): void {
+        parent::set_scope($scope);
+        $this->allcohorts = null;
+    }
+
+    /**
+     * Its referents are checked again while the rule is processed ({@see condition_base::is_outside_recorded_scope()}).
+     *
+     * @return bool
+     */
+    protected function rechecks_scope_when_processed(): bool {
+        return true;
+    }
+
+    /**
+     * Available to category-level users: every cohort must be usable from their category.
+     *
+     * @return bool
+     */
+    public function supports_category_scope(): bool {
+        return true;
+    }
+
+    /**
+     * Errors for a configured cohort that is not usable from the scope.
+     *
+     * @return array
+     */
+    public function validate_scope(): array {
+        if ($this->scope === null) {
+            return [];
+        }
+
+        global $DB;
+
+        /* Only the configured cohorts, in one query that reads no capability: this also runs while
+           the rule is processed, on every event the rule listens to. */
+        $ids = array_unique(array_map('intval', $this->get_configured_cohorts()));
+        if (empty($ids)) {
+            return [];
+        }
+        [$insql, $inparams] = $DB->get_in_or_equal($ids, SQL_PARAMS_NAMED, condition_sql::generate_param_alias());
+        [$scopesql, $scopeparams] = self::scoped_cohorts_sql('c', $this->scope);
+        $sql = "SELECT COUNT(1) FROM {cohort} c WHERE c.id {$insql} AND {$scopesql}";
+        if ($DB->count_records_sql($sql, $inparams + $scopeparams) == count($ids)) {
+            return [];
+        }
+        return [$this->get_cohort_field() => get_string('outofscope', 'tool_dynamic_cohorts')];
     }
 
     /**
@@ -188,6 +245,10 @@ class cohort_membership extends condition_base {
      * @return string
      */
     public function get_broken_description(): string {
+        if ($this->is_outside_recorded_scope()) {
+            return get_string('brokenoutofscope', 'tool_dynamic_cohorts');
+        }
+
         if ($this->is_using_rule_cohort()) {
             $description = get_string('condition:cohort_membership_broken_description', 'tool_dynamic_cohorts');
             $description .= '<br />';
@@ -266,6 +327,10 @@ class cohort_membership extends condition_base {
      * @return bool
      */
     public function is_broken(): bool {
+        if ($this->is_outside_recorded_scope()) {
+            return true;
+        }
+
         // Check if configured cohort is still exist.
         foreach ($this->get_configured_cohorts() as $cohortid) {
             if (!array_key_exists($cohortid, $this->get_all_cohorts())) {

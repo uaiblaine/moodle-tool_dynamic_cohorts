@@ -134,7 +134,7 @@ const submitModalFormAjax = (className, modal) => {
 
         Ajax.call([{
             methodname: 'tool_dynamic_cohorts_submit_condition_form',
-            args: {classname: className, jsonformdata: JSON.stringify(submittedData)},
+            args: {classname: className, jsonformdata: JSON.stringify(submittedData), contextid: M.cfg.contextid},
             done: function(response) {
                 updateCondition(response);
                 renderConditions(getConditions());

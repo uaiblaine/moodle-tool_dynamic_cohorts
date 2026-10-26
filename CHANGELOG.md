@@ -7,6 +7,112 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This is a fork of [catalyst/moodle-tool_dynamic_cohorts](https://github.com/catalyst/moodle-tool_dynamic_cohorts).
 Entries below cover the fork only; upstream history lives in that repository.
 
+## [v5.3-r3] - 2026-10-22
+
+Third release of this fork for Moodle 5.3 ($plugin->version = 2026100504). A category-level user's
+conditions now stay inside their category while the rule is processed, not only when it is saved.
+
+### Changed
+
+- `$plugin->version` 2026100504: the release adds a language string (`brokenoutofscope`), and
+  the upgrade refreshes the string cache.
+- A condition written by a category-level user records the category it was written in, every
+  condition and not only the cohort field one (`scopecontextid`). Course, enrolment, role and
+  cohort membership conditions check their course, category or cohort against it again whenever
+  the rule is processed. If an administrator has since moved the course or category out, or hidden
+  the cohort, the condition is broken: the rule is marked broken and stops, keeping its members,
+  and the condition says why. A condition written site-wide records nothing and is not affected.
+  Profile-field conditions are checked on save only, since a field's visibility depends on the
+  capabilities of whoever wrote the rule. A category-level user who saves a rule, moved to
+  another cohort or not, records the rule's current category on every condition it keeps,
+  including one an administrator wrote; a refused save records nothing.
+
+## [v5.3-r2] - 2026-10-22
+
+Second release of this fork for Moodle 5.3 ($plugin->version = 2026100503). Rules can now be managed
+in a course category: see "Managing rules in a course category" in the README.
+
+Stages S0 to S3 of `docs/category-context/PLAN.md`. S0 fixed three defects that were harmless
+while the capability could only be granted site-wide and that become privilege-boundary breaches
+once rules are managed per category. S1 decides every rule in its cohort's context. S2 makes the
+rules page reachable from a course category. S3 keeps the conditions a category-level user writes
+inside that category.
+
+### Added
+
+- Conditions written by a user who manages rules in a course category, rather than site-wide,
+  stay inside that category. A condition opts in (`condition_base::supports_category_scope()`)
+  and checks its referents (`validate_scope()`): the modal offers only what lies in the category,
+  and saving the rule checks again against the cohort the rule fills. That check includes the
+  stored conditions sent back unchanged and the conditions of a rule saved without touching them,
+  so a condition an administrator wrote outside the category blocks a category manager's save
+  until it is removed. Per condition:
+    - course completed, not completed and user enrolment take only courses of the category;
+    - user role takes a category or a course of the category, never the system level (a role held
+      higher up still counts, as for any role condition);
+    - cohort membership takes the cohorts usable from the category: its own and its
+      subcategories', and the visible ones of the contexts above it;
+    - cohort field records the category on save (`scopecontextid`) and, while the rule is
+      processed, matches only the cohorts usable from it;
+    - user profile offers username, email and idnumber only where core would show that identity
+      field to the user in the category, and a field the site hides (`hiddenuserfields`) only with
+      `moodle/user:viewhiddendetails` site-wide; custom profile fields follow their visibility;
+    - auth method, last login, account creation and interests refer to nothing outside the user.
+  An administrator, and any rule of a system cohort, writes conditions as before.
+- Setting "Conditions available in course categories" (`categoryconditions`): the conditions a
+  category-level user may use. Every built-in condition by default; conditions from other plugins
+  stay off until they support a category scope and are ticked. A condition switched off keeps
+  working in existing rules, but a category-level user can no longer save a rule that uses it.
+
+- The rules page in a course category: `index.php?contextid=<category context>`, offered as
+  "Dynamic cohort rules" in the category's navigation to whoever may manage rules there. It lists
+  the rules whose cohort lives in the category or below it; each row's actions are decided in that
+  rule's own cohort context, so a subcategory where the capability is prohibited is listed without
+  them. The page set-up and the listed scope live in `local\rules_page`. The rules report opens
+  only in the system or a course category context and, below the system level, lists that
+  context's subtree whatever context core's report services are asked for.
+- Test data generators (`tests/generator/`), with a Behat entity for rules.
+- README: managing rules in a course category.
+- `mutations/gates.conf`: the mutation spec for these guards (`mdl mutate`), gates A-Z, AA-AZ and BA.
+
+### Changed
+
+- `tool/dynamic_cohorts:manage` is a course category capability now, and every rule is decided
+  in its cohort's context by the new `local\rule_access`, which requires both that capability
+  and `moodle/cohort:assign` there. This covers the rule form (its cohort list keeps the cohorts
+  at or below the page that the user may attach a rule to), saving a rule (the cohort it fills
+  and the cohort it is pointed at are both checked), the four web services (a rule id that does
+  not exist is decided in the system context), both fragments, and the matching-users report,
+  which is decided on its rule rather than on the context it was created in.
+- Rule and condition events are raised in the rule's cohort context instead of the system
+  context, also when the rule is being deleted.
+- `tool_dynamic_cohorts_submit_condition_form` takes an optional `contextid`, the page the rule
+  is edited from (system or course category).
+- `cohort_manager::get_cohorts()` reads `{cohort}` directly. It used to go through
+  `cohort_get_all_cohorts()`, which drops the cohorts of every context where the current user
+  lacks `moodle/cohort:view` or `:manage`: a category manager holding `moodle/cohort:assign`
+  would have got an empty list, and claiming or releasing a cohort would silently have done
+  nothing.
+
+### Fixed
+
+- A rule whose cohort was deleted is now listed on the system rules page: the report joined the cohort
+  with an INNER JOIN, so such a rule was listed nowhere and could not be deleted.
+- Saving a rule rewrote any condition whose id the form sent, including another rule's: the
+  submitted record has its `ruleid` stripped, so the stored row kept its own rule and was
+  updated in place. A submitted condition id must now belong to the rule being saved, and the
+  persistent is built from that checked integer id, not from the raw submitted value.
+- The rule form stored its `conditionjson` field without checking it; only the condition modal
+  validated. Each new or changed condition is now validated on save: its class must be a
+  discovered condition, its config data must pass the condition's own validation, and a
+  condition that is not broken must build its SQL without throwing (a `TypeError` there would
+  escape the `'*'` observer on every event). A stored condition sent back unchanged is not
+  revalidated, so a rule whose condition class was uninstalled can still be saved and is
+  marked broken as before. A refused condition rolls the whole save back.
+- `tool_dynamic_cohorts_delete_rules` checked the capability once, in the system context. Each
+  rule is now also checked in its cohort's context (`rule::get_context()`, the system context
+  for a rule whose cohort is gone), before anything is deleted.
+
 ## [v5.3-r1] - 2026-10-18
 
 First release of this fork for Moodle 5.3 ($plugin->version = 2026100500). The 5.1, 5.2 and 5.3

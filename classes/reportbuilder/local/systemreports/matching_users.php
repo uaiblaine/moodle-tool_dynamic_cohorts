@@ -16,11 +16,10 @@
 
 namespace tool_dynamic_cohorts\reportbuilder\local\systemreports;
 
-use context;
-use context_system;
 use core_reportbuilder\local\entities\user;
 use core_reportbuilder\system_report;
 use tool_dynamic_cohorts\condition_manager;
+use tool_dynamic_cohorts\local\rule_access;
 use tool_dynamic_cohorts\rule;
 
 /**
@@ -38,7 +37,9 @@ class matching_users extends system_report {
      */
     protected function initialise(): void {
         $ruleid = $this->get_parameter('ruleid', 0, PARAM_INT);
-        $rule = rule::get_record(['id' => $ruleid], MUST_EXIST);
+        // Not MUST_EXIST: core runs initialise() before can_view(), and a missing rule must be
+        // refused like a rule out of reach, not answered with a different exception.
+        $rule = rule::get_record(['id' => $ruleid]) ?: null;
 
         $userentity = new user();
         $userentity->set_table_alias('user', 'u');
@@ -46,8 +47,8 @@ class matching_users extends system_report {
         $this->set_main_table('user', $usertablealias);
         $this->add_entity($userentity);
 
-        $conditions = $rule->get_condition_records();
-        $sql = condition_manager::build_sql_data($conditions, $rule->get('operator'));
+        $conditions = $rule ? $rule->get_condition_records() : [];
+        $sql = condition_manager::build_sql_data($conditions, $rule ? $rule->get('operator') : 0);
 
         if (empty($conditions) || $rule->is_broken()) {
             // No conditions. Filter out all users.
@@ -74,20 +75,16 @@ class matching_users extends system_report {
     }
 
     /**
-     * Returns report context.
-     *
-     * @return \context
-     */
-    public function get_context(): context {
-        return context_system::instance();
-    }
-
-    /**
      * Check if can view this system report.
+     *
+     * Decided on the rule the report lists users for, in its cohort's context, not on the
+     * context the report was created in: a download request carries both, and only the rule
+     * says whose members these are.
      *
      * @return bool
      */
     protected function can_view(): bool {
-        return has_capability('tool/dynamic_cohorts:manage', $this->get_context());
+        $rule = rule::get_record(['id' => $this->get_parameter('ruleid', 0, PARAM_INT)]) ?: null;
+        return rule_access::can_manage(rule_access::context_for($rule));
     }
 }

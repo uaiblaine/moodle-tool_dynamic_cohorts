@@ -96,25 +96,28 @@ class user_role extends condition_base {
         // Role field.
         $mform->addElement('select', 'roleid', get_string('role'), $this->get_all_roles());
 
-        // Context level selection.
-        $mform->addElement(
-            'select',
-            'contextlevel',
-            get_string('context'),
-            [
-                CONTEXT_SYSTEM => get_string('coresystem'),
-                CONTEXT_COURSECAT => get_string('category'),
-                CONTEXT_COURSE => get_string('course'),
-            ]
-        );
+        // Context level selection; no system level for a category-level user.
+        $contextlevels = [
+            CONTEXT_SYSTEM => get_string('coresystem'),
+            CONTEXT_COURSECAT => get_string('category'),
+            CONTEXT_COURSE => get_string('course'),
+        ];
+        if ($this->scope !== null) {
+            unset($contextlevels[CONTEXT_SYSTEM]);
+        }
+        $mform->addElement('select', 'contextlevel', get_string('context'), $contextlevels);
 
         // Course.
-        $mform->addElement('course', 'courseid', get_string('course'));
+        $this->add_course_element($mform, 'courseid', get_string('course'));
         $mform->setType('courseid', PARAM_INT);
         $mform->hideIf('courseid', 'contextlevel', 'in', [CONTEXT_SYSTEM, CONTEXT_COURSECAT]);
 
-        // Course category.
-        $categories = core_course_category::make_categories_list();
+        // Course category; only those under the scope for a category-level user.
+        $categories = array_filter(
+            core_course_category::make_categories_list(),
+            fn(int $categoryid): bool => $this->category_in_scope($categoryid),
+            ARRAY_FILTER_USE_KEY
+        );
         $mform->addElement('autocomplete', 'categoryid', get_string('coursecategory'), $categories);
         $mform->setType('categoryid', PARAM_INT);
         $mform->hideIf('categoryid', 'contextlevel', 'in', [CONTEXT_SYSTEM, CONTEXT_COURSE]);
@@ -141,6 +144,65 @@ class user_role extends condition_base {
         }
 
         return $errors;
+    }
+
+    /**
+     * Its referents are checked again while the rule is processed ({@see condition_base::is_outside_recorded_scope()}).
+     *
+     * @return bool
+     */
+    protected function rechecks_scope_when_processed(): bool {
+        return true;
+    }
+
+    /**
+     * Available to category-level users: the category or course must lie under their category.
+     *
+     * The role keeps its meaning (O1): held in the chosen context or any of its parents, as for an
+     * administrator's rule, so a scoped rule may match users holding the role higher up.
+     *
+     * @return bool
+     */
+    public function supports_category_scope(): bool {
+        return true;
+    }
+
+    /**
+     * Errors for a system level, or a category or course outside the scope.
+     *
+     * @return array
+     */
+    public function validate_scope(): array {
+        if ($this->scope === null) {
+            return [];
+        }
+
+        switch ($this->get_contextlevel_value()) {
+            case CONTEXT_COURSECAT:
+                $inscope = $this->category_in_scope($this->get_categoryid_value());
+                $element = 'categoryid';
+                break;
+            case CONTEXT_COURSE:
+                $inscope = $this->course_in_scope($this->get_courseid_value());
+                $element = 'courseid';
+                break;
+            default:
+                $inscope = false;
+                $element = 'contextlevel';
+        }
+
+        return $inscope ? [] : [$element => get_string('outofscope', 'tool_dynamic_cohorts')];
+    }
+
+    /**
+     * Whether a course category lies inside the scope; one that does not exist does not.
+     *
+     * @param int $categoryid Course category id.
+     * @return bool
+     */
+    protected function category_in_scope(int $categoryid): bool {
+        $context = \core\context\coursecat::instance($categoryid, IGNORE_MISSING);
+        return $context ? $this->in_scope($context) : $this->scope === null;
     }
 
     /**
@@ -257,6 +319,10 @@ class user_role extends condition_base {
      * @return string
      */
     public function get_broken_description(): string {
+        if ($this->is_outside_recorded_scope()) {
+            return get_string('brokenoutofscope', 'tool_dynamic_cohorts');
+        }
+
         global $DB;
 
         // Missing role.
@@ -385,6 +451,10 @@ class user_role extends condition_base {
      * @return bool
      */
     public function is_broken(): bool {
+        if ($this->is_outside_recorded_scope()) {
+            return true;
+        }
+
         global $DB;
 
         if ($this->get_config_data()) {
