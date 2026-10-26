@@ -120,6 +120,11 @@ abstract class condition_base {
     public const DATE_IN_THE_FUTURE = 40;
 
     /**
+     * Config key of the category a category-level user wrote the condition in ({@see self::record_scope()}).
+     */
+    public const SCOPE_KEY = 'scopecontextid';
+
+    /**
      * Condition persistent object.
      *
      * @var condition $condition
@@ -127,9 +132,30 @@ abstract class condition_base {
     protected $condition;
 
     /**
+     * The course category context the condition is written for, or null when unscoped.
+     *
+     * Set by whoever builds or validates the condition for a category-level user
+     * ({@see \tool_dynamic_cohorts\local\rule_access::condition_scope()}); never set while a rule is
+     * processed, so get_sql() cannot depend on it (a condition that needs its scope at that
+     * point records it in its config, {@see self::record_scope()}).
+     *
+     * @var \core\context|null $scope
+     */
+    protected $scope = null;
+
+    /**
      * Protected constructor.
      */
     protected function __construct() {
+    }
+
+    /**
+     * A copy gets its own persistent, so setting its config or scope leaves the original alone.
+     */
+    public function __clone() {
+        if ($this->condition) {
+            $this->condition = clone $this->condition;
+        }
     }
 
     /**
@@ -209,6 +235,219 @@ abstract class condition_base {
      */
     public function get_rule(): ?rule {
         return rule::get_record(['id' => $this->get_record()->get('ruleid')]) ?: null;
+    }
+
+    /**
+     * Whether this condition can be offered to a user who manages rules in a course category.
+     *
+     * False by default, so a condition from another plugin stays unavailable there until it
+     * scopes its referents and an administrator enables it (setting categoryconditions).
+     *
+     * @return bool
+     */
+    public function supports_category_scope(): bool {
+        return false;
+    }
+
+    /**
+     * Set the course category context the condition is written for; null for none.
+     *
+     * @param \core\context|null $scope Course category context, or null when unscoped.
+     */
+    public function set_scope(?\core\context $scope): void {
+        $this->scope = $scope;
+    }
+
+    /**
+     * Errors for referents of the configured condition that lie outside the scope.
+     *
+     * Called by the condition modal and again when the rule is saved, so the option lists the
+     * modal offers and the server-side check cannot disagree. Without a scope there is nothing
+     * to check.
+     *
+     * @return array Form errors keyed by element name.
+     */
+    public function validate_scope(): array {
+        return [];
+    }
+
+    /**
+     * Store the scope in the config data, so the condition is held to it while the rule is processed.
+     *
+     * Called on save for every new or changed condition of a scoped user, before validate_scope().
+     * The category is recorded because nothing else is at that point: cron and observers run with
+     * no user and no page ({@see self::is_outside_recorded_scope()}).
+     */
+    public function record_scope(): void {
+        if ($this->scope !== null) {
+            $this->set_config_data([self::SCOPE_KEY => (int) $this->scope->id] + $this->get_config_data());
+        }
+    }
+
+    /**
+     * The category context recorded by record_scope(), or null when none was recorded or it is gone.
+     *
+     * @return \core\context|null
+     */
+    protected function get_recorded_scope(): ?\core\context {
+        $config = json_decode((string) $this->condition->get('configdata'), true);
+        $contextid = is_array($config) ? (int) ($config[self::SCOPE_KEY] ?? 0) : 0;
+        return $contextid ? (\core\context::instance_by_id($contextid, IGNORE_MISSING) ?: null) : null;
+    }
+
+    /**
+     * Whether validate_scope() can be repeated while the rule is processed.
+     *
+     * Only for referents whose place does not depend on who is asking (a course, a category, a
+     * cohort): a profile field's visibility depends on the capabilities of the user who wrote the
+     * condition, which processing does not have.
+     *
+     * @return bool
+     */
+    protected function rechecks_scope_when_processed(): bool {
+        return false;
+    }
+
+    /**
+     * Whether the condition reaches outside the category it was written in, as things stand now.
+     *
+     * A course, category or cohort the condition names may be moved or hidden after the save. A
+     * condition doing so is broken: rule_manager::process_rule() then marks the rule broken and
+     * stops, keeping the cohort's members, instead of matching through a referent the category
+     * no longer owns. A condition without a recorded scope (written site-wide) is never affected,
+     * and one whose recorded category is gone always is.
+     *
+     * @return bool
+     */
+    public function is_outside_recorded_scope(): bool {
+        $config = json_decode((string) $this->condition->get('configdata'), true);
+        if (!is_array($config) || empty($config[self::SCOPE_KEY])) {
+            return false;
+        }
+
+        $recorded = $this->get_recorded_scope();
+        if ($recorded === null) {
+            return true;
+        }
+        if (!$this->rechecks_scope_when_processed()) {
+            return false;
+        }
+
+        $previous = $this->scope;
+        $this->set_scope($recorded);
+        try {
+            return !empty($this->validate_scope());
+        } finally {
+            $this->set_scope($previous);
+        }
+    }
+
+    /**
+     * Whether a context lies inside the scope (the scope itself or below it); always true unscoped.
+     *
+     * @param \core\context $context Context to test.
+     * @return bool
+     */
+    protected function in_scope(\core\context $context): bool {
+        if ($this->scope === null) {
+            return true;
+        }
+        return $context->id == $this->scope->id || str_starts_with($context->path, $this->scope->path . '/');
+    }
+
+    /**
+     * Whether a course lies inside the scope; a course that does not exist does not.
+     *
+     * @param int $courseid Course id.
+     * @return bool
+     */
+    protected function course_in_scope(int $courseid): bool {
+        $context = \core\context\course::instance($courseid, IGNORE_MISSING);
+        return $context ? $this->in_scope($context) : $this->scope === null;
+    }
+
+    /**
+     * Add a course selector: core's searchable course element, or the scope's courses when scoped.
+     *
+     * Core's element searches every course the user may see, so a category-level user gets a
+     * list of the courses under the scope instead.
+     *
+     * @param \MoodleQuickForm $mform The form.
+     * @param string $name Element name.
+     * @param string $label Element label.
+     * @param array $attributes Course element attributes; only onlywithcompletion is honoured when scoped.
+     */
+    protected function add_course_element(\MoodleQuickForm $mform, string $name, string $label, array $attributes = []): void {
+        global $DB;
+
+        if ($this->scope === null) {
+            $mform->addElement('course', $name, $label, $attributes);
+            return;
+        }
+
+        $sql = "SELECT c.id, c.fullname
+                  FROM {course} c
+                  JOIN {context} ctx ON ctx.instanceid = c.id AND ctx.contextlevel = :courselevel
+                 WHERE " . $DB->sql_like('ctx.path', ':path');
+        $params = ['courselevel' => CONTEXT_COURSE, 'path' => $DB->sql_like_escape($this->scope->path) . '/%'];
+        if (!empty($attributes['onlywithcompletion'])) {
+            $sql .= ' AND c.enablecompletion = 1';
+        }
+
+        $options = ['' => get_string('choosedots')];
+        foreach ($DB->get_records_sql($sql . ' ORDER BY c.fullname', $params) as $course) {
+            $coursecontext = \core\context\course::instance($course->id);
+            $options[$course->id] = format_string($course->fullname, true, ['context' => $coursecontext]);
+        }
+        $mform->addElement('autocomplete', $name, $label, $options);
+    }
+
+    /**
+     * SQL restricting a cohort table to the cohorts usable from a scope.
+     *
+     * The cohorts of the scope and of its subcategories, whatever their visibility, plus the
+     * visible cohorts of its parent contexts, which is how core offers cohorts below a context
+     * (cohort_get_available_cohorts()). Read from the tables alone, not from the current user, so
+     * it means the same thing in a rule's processing as in its form.
+     *
+     * @param string $cohortalias Alias of the {cohort} table.
+     * @param \core\context $scope Course category context.
+     * @return array [string $sql, array $params]
+     */
+    public static function scoped_cohorts_sql(string $cohortalias, \core\context $scope): array {
+        global $DB;
+
+        $ctxalias = condition_sql::generate_table_alias();
+        $idparam = condition_sql::generate_param_alias();
+        $pathparam = condition_sql::generate_param_alias();
+        $params = [$idparam => $scope->id, $pathparam => $DB->sql_like_escape($scope->path) . '/%'];
+
+        $parentsql = '';
+        if ($parents = $scope->get_parent_context_ids()) {
+            [$insql, $inparams] = $DB->get_in_or_equal($parents, SQL_PARAMS_NAMED, condition_sql::generate_param_alias());
+            $parentsql = " OR ({$cohortalias}.contextid {$insql} AND {$cohortalias}.visible = 1)";
+            $params += $inparams;
+        }
+
+        $sql = "({$cohortalias}.contextid IN (SELECT {$ctxalias}.id
+                                                FROM {context} {$ctxalias}
+                                               WHERE {$ctxalias}.id = :{$idparam}
+                                                  OR " . $DB->sql_like("{$ctxalias}.path", ":{$pathparam}") . ")
+                 {$parentsql})";
+
+        return [$sql, $params];
+    }
+
+    /**
+     * The cohorts usable from the scope, keyed by id: {@see self::scoped_cohorts_sql()}.
+     *
+     * @return array Cohort records.
+     */
+    protected function get_scoped_cohorts(): array {
+        global $DB;
+
+        [$sql, $params] = self::scoped_cohorts_sql('c', $this->scope);
+        return $DB->get_records_sql("SELECT c.* FROM {cohort} c WHERE {$sql} ORDER BY c.name, c.idnumber", $params);
     }
 
     /**

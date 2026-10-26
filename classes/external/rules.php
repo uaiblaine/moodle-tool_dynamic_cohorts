@@ -16,13 +16,13 @@
 
 namespace tool_dynamic_cohorts\external;
 
-use context_system;
 use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_multiple_structure;
 use core_external\external_value;
 use core_external\external_single_structure;
 use tool_dynamic_cohorts\event\rule_updated;
+use tool_dynamic_cohorts\local\rule_access;
 use tool_dynamic_cohorts\rule;
 use invalid_parameter_exception;
 use tool_dynamic_cohorts\rule_manager;
@@ -60,16 +60,15 @@ class rules extends external_api {
     public static function delete_rules(array $ruleids): array {
         self::validate_parameters(self::delete_rules_parameters(), ['ruleids' => $ruleids]);
 
-        $context = context_system::instance();
-        self::validate_context($context);
-        require_capability('tool/dynamic_cohorts:manage', $context);
-
-        // We would like to treat deletion for multiple rules as one operation.
-        // So let's check that all rules exist and then delete them.
-        // Otherwise throw an exception and fail whole WS call.
+        /* One operation for the whole list: every rule must exist and be manageable by the caller
+           in its own cohort's context before any of them is deleted, so one refused id leaves every
+           rule in place. A missing id is decided in the system context (rule_access::context_for()). */
         $rulestodelete = [];
         foreach ($ruleids as $ruleid) {
-            $rule = rule::get_record(['id' => (int) $ruleid]);
+            $rule = rule::get_record(['id' => (int) $ruleid]) ?: null;
+            $context = rule_access::context_for($rule);
+            self::validate_context($context);
+            rule_access::require_manage($context);
             if (empty($rule)) {
                 throw new invalid_parameter_exception('Rule does not exist. ID: ' . $ruleid);
             }
@@ -112,10 +111,11 @@ class rules extends external_api {
     public static function toggle_status(int $ruleid): array {
         self::validate_parameters(self::toggle_status_parameters(), ['ruleid' => $ruleid]);
 
-        self::validate_context(context_system::instance());
-        require_capability('tool/dynamic_cohorts:manage', context_system::instance());
+        $rule = rule::get_record(['id' => $ruleid]) ?: null;
+        $context = rule_access::context_for($rule);
+        self::validate_context($context);
+        rule_access::require_manage($context);
 
-        $rule = rule::get_record(['id' => $ruleid]);
         if (empty($rule)) {
             throw new invalid_parameter_exception('Rule does not exist. ID: ' . $ruleid);
         }
@@ -124,7 +124,7 @@ class rules extends external_api {
             // Disable broken rule.
             $rule->set('enabled', 0);
             $rule->save();
-            rule_updated::create(['other' => ['ruleid' => $rule->get('id')]])->trigger();
+            rule_updated::create(['context' => $context, 'other' => ['ruleid' => $rule->get('id')]])->trigger();
 
             /* The lang string, not a hardcoded English literal: this message reaches the
                user through Notification.exception in amd/src/manage_rules.js. */
@@ -136,7 +136,7 @@ class rules extends external_api {
         $newvalue = (int) !$rule->is_enabled();
         $rule->set('enabled', $newvalue);
         $rule->save();
-        rule_updated::create(['other' => ['ruleid' => $rule->get('id')]])->trigger();
+        rule_updated::create(['context' => $context, 'other' => ['ruleid' => $rule->get('id')]])->trigger();
 
         return [
             'ruleid' => $rule->get('id'),

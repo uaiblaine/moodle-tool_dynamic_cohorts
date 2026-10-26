@@ -372,7 +372,7 @@ const initRuleEdit = (root) => {
 const getRuleForm = (ruleid, action) => {
     return new ModalForm({
         formClass: "tool_dynamic_cohorts\\rule_form",
-        args: {id: ruleid},
+        args: {id: ruleid, contextid: M.cfg.contextid},
         modalConfig: {title: getString(FORM_TITLE_KEYS[action], 'tool_dynamic_cohorts')},
     });
 };

@@ -75,7 +75,7 @@ class course_completed extends condition_base {
      * @param \MoodleQuickForm $mform
      */
     public function config_form_add(\MoodleQuickForm $mform): void {
-        $mform->addElement('course', 'courseid', get_string('course'), ['onlywithcompletion' => true]);
+        $this->add_course_element($mform, 'courseid', get_string('course'), ['onlywithcompletion' => true]);
         $mform->addRule('courseid', null, 'required', null, 'client');
         $mform->setType('courseid', PARAM_INT);
 
@@ -106,6 +106,36 @@ class course_completed extends condition_base {
         }
 
         return $errors;
+    }
+
+    /**
+     * Its referents are checked again while the rule is processed ({@see condition_base::is_outside_recorded_scope()}).
+     *
+     * @return bool
+     */
+    protected function rechecks_scope_when_processed(): bool {
+        return true;
+    }
+
+    /**
+     * Available to category-level users: the course must lie under their category.
+     *
+     * @return bool
+     */
+    public function supports_category_scope(): bool {
+        return true;
+    }
+
+    /**
+     * Errors for a course outside the scope.
+     *
+     * @return array
+     */
+    public function validate_scope(): array {
+        if (!$this->course_in_scope($this->get_courseid_value())) {
+            return ['courseid' => get_string('outofscope', 'tool_dynamic_cohorts')];
+        }
+        return [];
     }
 
     /**
@@ -191,6 +221,10 @@ class course_completed extends condition_base {
      * @return string
      */
     public function get_broken_description(): string {
+        if ($this->is_outside_recorded_scope()) {
+            return get_string('brokenoutofscope', 'tool_dynamic_cohorts');
+        }
+
         global $DB;
 
         // Check course exists.
@@ -260,6 +294,10 @@ class course_completed extends condition_base {
      * @return bool
      */
     public function is_broken(): bool {
+        if ($this->is_outside_recorded_scope()) {
+            return true;
+        }
+
         global $DB;
 
         if ($this->get_config_data()) {
