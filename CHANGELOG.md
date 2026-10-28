@@ -9,6 +9,24 @@ Entries below cover the fork only; upstream history lives in that repository.
 
 ## [Unreleased]
 
+### Added
+
+- Condition "Competency proficiency": users who are, or are not, proficient in at least one or all
+  of up to 50 competencies, by their site-wide rating, their rating in one course, or their rating
+  in any course. It reads core's rating tables directly, never the competency API, whose getters
+  check the current user's capabilities and throw while competencies are disabled; a rating keeps
+  counting after its competency is unlinked from a course, and the condition is not offered while
+  competencies are disabled. "All" is a correlated count rather than a grouped derived table, which
+  MariaDB materialises whole for every one-user evaluation when negated or under OR. Real-time
+  processing listens to `competency_evidence_created` and skips evidence that cannot change a
+  proficiency (a log action) or that concerns another competency. A deleted competency breaks the
+  condition, and its description says which ids are gone and how to resume the rule. Competencies
+  are picked through a search (`tool_dynamic_cohorts_search_competencies`). Not yet available to
+  category-level users. Backport of stage S2 of the competency conditions plan
+  (`docs/competency-conditions/PLAN.md` on `main`).
+- `$plugin->version` 2026042005: the release adds a web service, an AMD module and language
+  strings.
+
 ### Changed
 
 - Real-time processing evaluates a rule once per event. A rule holding two conditions that
