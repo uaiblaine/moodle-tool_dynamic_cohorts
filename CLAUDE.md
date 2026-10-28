@@ -86,14 +86,16 @@ classes/
   condition_sql.php                the (join, where, params) triple + the alias
                                    generators that keep params from colliding
   cohort_manager.php               claims/releases {cohort}.component
-  local/tool_dynamic_cohorts/condition/    the twelve built-in conditions
-  external/                        four AJAX web services, all system-context
+  local/tool_dynamic_cohorts/condition/    the fourteen built-in conditions
+  external/                        six AJAX web services; each decides its context from
+                                   the rule or the page (system or course category)
   reportbuilder/                   the rules table and the matching-users table
   task/process_rules.php           scheduled: queues one ad-hoc task per enabled rule
   task/process_rule.php            ad-hoc: processes one rule
   observer.php                     registered for '*' — every event on the site
 amd/src/manage_rules.js            the whole rules UI; every action is a modal
 amd/src/condition_form.js          the condition sub-form inside the rule modal
+amd/src/competency_selector.js     AJAX transport of the competency condition's search
 ```
 
 ## Architecture gotchas

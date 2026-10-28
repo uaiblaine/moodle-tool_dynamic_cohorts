@@ -508,8 +508,9 @@ class learning_plan extends condition_base {
      * Relevant when the plan was created from, or unlinked from, a configured template.
      *
      * Both columns are read whether or not unlinked plans count: a plan being unlinked leaves the
-     * set of plans "from the template", so its rule must be processed. Every plan event carries the
-     * plan as a snapshot; without one, the event counts as relevant.
+     * set of plans "from the template", so its rule must be processed. Every core plan event carries
+     * the plan as a snapshot; for an event without one, get_record_snapshot() reads the plan, and a
+     * plan already gone counts as relevant.
      *
      * @param \core\event\base $event The event.
      * @return bool

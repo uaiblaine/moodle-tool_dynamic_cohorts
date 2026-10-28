@@ -82,7 +82,7 @@ class competency_proficiency extends condition_base {
             'multiple' => true,
             'ajax' => 'tool_dynamic_cohorts/competency_selector',
             'noselectionstring' => get_string('competencysearch', 'tool_dynamic_cohorts'),
-            'valuehtmlcallback' => fn($id) => self::competency_label((int) $id),
+            'valuehtmlcallback' => fn($id) => $this->selected_label((int) $id),
         ]);
         $mform->addRule('competencyids', null, 'required', null, 'client');
         $mform->setType('competencyids', PARAM_INT);
@@ -325,6 +325,37 @@ class competency_proficiency extends condition_base {
     }
 
     /**
+     * Label of a competency the form shows as selected, held to the scope.
+     *
+     * The form labels every id it is given, and its fragment takes them from the client, so a
+     * category-level user gets names only for competencies of frameworks usable from the scope,
+     * as the search gives them. Any other id gets the same neutral label whether it exists or not.
+     *
+     * @param int $id Competency id.
+     * @return string Escaped label.
+     */
+    protected function selected_label(int $id): string {
+        global $DB;
+
+        if ($this->scope !== null) {
+            [$usablesql, $params] = self::scoped_contexts_sql('f.contextid', 'f.visible', $this->scope);
+            $params['labelcompetencyid'] = $id;
+            $usable = $DB->record_exists_sql(
+                "SELECT 1
+                   FROM {competency} c
+                   JOIN {competency_framework} f ON f.id = c.competencyframeworkid
+                  WHERE c.id = :labelcompetencyid AND {$usablesql}",
+                $params
+            );
+            if (!$usable) {
+                return get_string('competencyunlabelled', 'tool_dynamic_cohorts', $id);
+            }
+        }
+
+        return self::competency_label($id);
+    }
+
+    /**
      * Label of a competency, "Framework › Competency (idnumber)", escaped for an HTML sink.
      *
      * Read from the tables, as every description here is: core's competency getters check the
@@ -382,7 +413,8 @@ class competency_proficiency extends condition_base {
             $coursename = (string) $DB->get_field('course', 'fullname', ['id' => $this->get_int('courseid', 0)]);
             $coursename = format_string($coursename, true, ['context' => \core\context\system::instance()]);
             $sourcetext = get_string('competencysource_course_description', 'tool_dynamic_cohorts', $coursename);
-        } else if ($source === self::SOURCE_ANY_COURSE && ($scope = $this->get_recorded_scope())) {
+        } else if ($source === self::SOURCE_ANY_COURSE && ($scope = $this->get_recorded_scope() ?? $this->scope)) {
+            // Recorded once saved; before that, the condition modal describes it from its own scope.
             $categoryname = (string) $DB->get_field('course_categories', 'name', ['id' => $scope->instanceid]);
             $categoryname = format_string($categoryname, true, ['context' => $scope]);
             $sourcetext = get_string('competencysource_anycourse_category_description', 'tool_dynamic_cohorts', $categoryname);
@@ -556,7 +588,10 @@ class competency_proficiency extends condition_base {
     /**
      * Relevant when the evidence can change a proficiency and concerns a configured competency.
      *
-     * Only the complete and override actions set a rating; a log action leaves it as it was.
+     * Only the complete and override actions set a rating; a log action leaves it as it was. For
+     * the one-course source, only evidence given in that course or one of its activities: core
+     * writes the course rating in the evidence's own course ({@see \core_competency\api::add_evidence()}).
+     * The evidence context comes from the context cache, as the event built it.
      *
      * @param \core\event\base $event The event.
      * @return bool
@@ -566,6 +601,15 @@ class competency_proficiency extends condition_base {
         if ($action === \core_competency\evidence::ACTION_LOG) {
             return false;
         }
-        return in_array((int) ($event->other['competencyid'] ?? 0), $this->get_competencyids(), true);
+        if (!in_array((int) ($event->other['competencyid'] ?? 0), $this->get_competencyids(), true)) {
+            return false;
+        }
+
+        if ($this->get_int('source', self::SOURCE_GLOBAL) === self::SOURCE_COURSE) {
+            $context = $event->get_context();
+            $coursecontext = $context ? $context->get_course_context(false) : false;
+            return $coursecontext && (int) $coursecontext->instanceid === $this->get_int('courseid', 0);
+        }
+        return true;
     }
 }

@@ -45,6 +45,21 @@ Entries below cover the fork only; upstream history lives in that repository.
   strings; 2026100506 adds the learning plan condition's strings; 2026100507 the strings for the
   category scope.
 
+### Fixed (audit of 2026-10-28)
+
+- A category-level user could read the names and ID numbers of competencies outside their
+  category through the condition form, whose fragment labels every selected id it is given. Ids
+  outside the category now get a neutral label, the same whether the competency exists or not.
+- The condition modal described a category-level user's "any course" source as every course; it
+  now says the category's courses, as the saved condition does.
+- The "Rating" help said a course rating always reaches the site-wide rating; core pushes it only
+  when the course pushes ratings to learning plans (the default).
+- A one-course competency condition no longer reprocesses its rules for evidence given in other
+  courses.
+- Stale comments and documentation corrected (the plan, this plugin's CLAUDE.md, the README); the
+  report of the audit is `docs/competency-conditions/AUDIT-2026-10-28.md`. `$plugin->version`
+  2026100509 (strings).
+
 ### Changed
 
 - The rules report has a Context column naming where each rule was written: the system, or the
@@ -58,7 +73,7 @@ Entries below cover the fork only; upstream history lives in that repository.
   the observer that an event cannot change its result, so its rules are not evaluated for it. It
   defaults to true, which keeps every existing condition as it was. `scoped_contexts_sql()`
   generalises `scoped_cohorts_sql()` to any table with a context and a visibility column, for the
-  competency frameworks and plan templates of the coming conditions. Stage S1 of
+  competency frameworks and plan templates of the competency and learning plan conditions. Stage S1 of
   `docs/competency-conditions/PLAN.md`.
 
 ### Fixed
