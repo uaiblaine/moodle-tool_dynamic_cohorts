@@ -1,6 +1,7 @@
 # Competency and learning plan conditions: plan
 
-Status: decisions recorded 2026-10-27 (end of file); stage S0 in progress.
+Status: decisions recorded 2026-10-27 (end of file); stages S0 to S4 done 2026-10-28. Audit:
+`AUDIT-2026-10-28.md`.
 
 ## Goal
 
@@ -33,9 +34,10 @@ Tables and indexes (`lib/db/install.xml`):
   users with competency C" has no index and reads the table once. A plugin cannot add an index to
   a core table.
 - **Every rating goes through `api::add_evidence()`** (`competency/classes/api.php:4285`): manual
-  rating (`grade_competency*()` call it at :4872, :4922, :4980), course and activity completion
-  rules, rule propagation to parents. It writes `usercomp` and, in a course or module context,
-  `usercompcourse`, and fires **`competency_evidence_created`** (:4503) with `relateduserid` = the
+  rating (`grade_competency()`, `grade_competency_in_plan()` and `grade_competency_in_course()` call
+  it), course and activity completion rules, rule propagation to parents. In a course or module
+  context it writes `usercompcourse`, and writes `usercomp` only when the course pushes ratings to
+  learning plans (`pushratingstouserplans`); elsewhere it writes `usercomp`. It fires **`competency_evidence_created`** (:4503) with `relateduserid` = the
   rated user and `other` = `usercompetencyid`, `competencyid`, `action`. Only `ACTION_COMPLETE` (2)
   and `ACTION_OVERRIDE` (3) can change a proficiency; `ACTION_LOG` (0) cannot. The `*_rated*`
   events fire only for manual ratings, so they are not enough on their own.
@@ -60,11 +62,11 @@ Tables and indexes (`lib/db/install.xml`):
 
 In this plugin (`main`, 2026100503):
 
-- **Latent defect: an event with neither user processes the whole rule inside the request that
-  fired it.** `get_userid_from_event()` returns 0, `process_rule($rule, 0)` treats 0 as "no user"
+- **Latent defect, fixed in S0: an event with neither user processed the whole rule inside the
+  request that fired it.** `get_userid_from_event()` returns 0, `process_rule($rule, 0)` treats 0 as "no user"
   (`get_matching_users()` and `build_sql_data()` test `if ($userid)`), so every user is matched and
-  the cohort rewritten in the triggering request. Reachable today by any subscribed event fired by
-  a CLI script with no user set that carries no related user.
+  the cohort rewritten in the triggering request. It was reachable by any subscribed event fired
+  by a CLI script with no user set that carries no related user.
 - `build_sql_data()` concatenates every condition's JOIN and combines only the WHERE fragments with
   the rule's operator (repo `CLAUDE.md`: joins must be neutral). `user_enrolment` already filters
   with `EXISTS` / `NOT EXISTS` in WHERE; `cohort_membership` with a LEFT JOIN on a derived table
@@ -218,14 +220,14 @@ Config:
   the cohort from the template, or pick another template).
 - **Broken** when a configured template is gone (with `deleteplans = false` its plans survive as
   unlinked; the description says so), and when outside the recorded scope.
-- **Events**: the twelve plan events that change existence, template link or status:
+- **Events**: the eleven plan events that change existence, template link or status:
   `competency_plan_created`, `_deleted`, `_completed`, `_reopened`, `_approved`, `_unapproved`,
   `_review_requested`, `_review_request_cancelled`, `_review_started`, `_review_stopped`,
-  `_unlinked`, and `_updated` only if an overdue state is added (Q6). User: the related user, which
+  `_unlinked`; `_updated` only if an overdue state is ever added (deferred, Q6). User: the related user, which
   core fills in with the owner;
   relevance from the plan snapshot's template (F2), true when there is no snapshot.
 
-### Framework changes (no behaviour change for the twelve conditions)
+### Framework changes (no behaviour change for the twelve conditions that existed then)
 
 - **F0, the latent defect.** The observer never calls `process_rule()` with a user id below 1; an
   event that names nobody is left to the scheduled run. One test fires an event with no user and
@@ -238,7 +240,7 @@ Config:
   from the existing caches). The rule is processed when any of them is relevant. Sound because an
   event that no subscribed condition of a rule finds relevant cannot change that rule's result.
   A class that keeps the default is answered without building its instances (one reflection per
-  class and process), so the twelve existing conditions cost nothing more. The same change
+  class and process), so the twelve conditions that existed then cost nothing more. The same change
   processes a rule **once per event**: before it, a rule holding two classes subscribed to the same
   event (`user_profile` and `user_profile_interests` both take `user_updated`) was evaluated twice.
 - **Generalised scope helper.** `scoped_cohorts_sql()` becomes a wrapper over

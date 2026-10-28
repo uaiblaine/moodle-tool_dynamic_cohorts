@@ -85,13 +85,16 @@ Conditions are simple predicates which assert something about a user in the syst
 * Competency proficiency (if a user is, or is not, proficient in at least one or all of up to 50
   competencies). It reads the site-wide rating, the rating given in one course, or the rating given
   in any course, straight from core's competency tables, so a rating keeps counting after its
-  competency is unlinked from the course or competencies are disabled. It is processed in real
-  time when a rating of one of its competencies changes.
+  competency is unlinked from the course or competencies are disabled. A rating given in a course
+  reaches the site-wide rating only when the course pushes ratings to learning plans (core's
+  default). It is processed in real time when a rating of one of its competencies changes. It is
+  not offered while competencies are disabled; rules already using it keep working.
 * Learning plan (if a user has, or has not, a learning plan created from given templates, in given
   statuses, optionally counting plans since unlinked from the template). Individual plans, which
   have no template, never count. A template whose cohort sync fills the rule's own cohort stops
   the rule, because core never removes a plan when a member leaves. Processed in real time when a
-  plan is created, deleted, changes status or is unlinked.
+  plan is created, deleted, changes status or is unlinked. Not offered while competencies are
+  disabled; rules already using it keep working.
 * Course completed (if a user has completed a course).
 * Course not completed (if a user has not completed a course).
 * User created time (time since a user was created).
@@ -180,11 +183,15 @@ as usual (_the category > More > Cohorts_, which needs `moodle/cohort:manage`).
   competencies of the category's frameworks and of the visible frameworks above it; the site-wide
   rating only for the category's own frameworks, and "any course" counts only the category's
   courses. Learning plan conditions take the category's templates and the visible templates above
-  it. A rule cannot be moved to another
-  cohort while one of its conditions reaches outside that cohort's category.
+  it; a template from above matches its plans whichever category their owners belong to. A rule
+  cannot be moved to another cohort while one of its conditions reaches outside that cohort's
+  category.
 - Not save a rule that holds a condition reaching outside the category (for example, one an
   administrator wrote). They have to remove that condition first. Enabling, disabling and
   deleting the rule still work.
+
+The rules report's Context column shows where each rule was written: the system, or the category
+its cohort lives in. On the site page, a Context filter narrows the list to one of them.
 
 A site administrator, or anyone holding both capabilities in the system context, is not limited by
 any of this and keeps managing every rule from site administration.
