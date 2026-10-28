@@ -259,6 +259,8 @@ final class rules_page_test extends \advanced_testcase {
      * The context column names where each rule was written; its filter is offered at the system level only.
      */
     public function test_report_context_column(): void {
+        global $DB;
+
         $this->setAdminUser();
         $parameters = ['contextid' => $this->contexts['system']->id];
         $result = retrieve::execute(rules::class, $parameters, 'tool_dynamic_cohorts', '', 0, [], 0, 100);
@@ -276,6 +278,21 @@ final class rules_page_test extends \advanced_testcase {
 
         $system = system_report_factory::create(rules::class, $this->contexts['system'], 'tool_dynamic_cohorts');
         $this->assertArrayHasKey('cohort:context', $system->get_filters());
+
+        // Its options: the contexts whose cohorts have a rule, in one statement; a category whose
+        // cohort has no rule is not offered.
+        $norule = $this->getDataGenerator()->create_category();
+        $this->getDataGenerator()->create_cohort(['contextid' => \core\context\coursecat::instance($norule->id)->id]);
+        $before = $DB->perf_get_reads();
+        $options = $system->get_filter('cohort:context')->get_options();
+        $this->assertSame(1, $DB->perf_get_reads() - $before);
+        $expected = array_map(fn($key) => (int) $this->contexts[$key]->id, ['a', 'a1', 'a2', 'b', 'system']);
+        $actual = array_map('intval', array_keys($options));
+        sort($expected);
+        sort($actual);
+        $this->assertSame($expected, $actual);
+        $this->assertSame(get_string('coresystem'), $options[$this->contexts['system']->id]);
+        $this->assertSame($this->contexts['b']->get_context_name(false), $options[$this->contexts['b']->id]);
 
         // Not on a category page: its options would name categories outside the manager's subtree.
         $this->setUser($this->manager);
