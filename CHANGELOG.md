@@ -7,7 +7,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This is a fork of [catalyst/moodle-tool_dynamic_cohorts](https://github.com/catalyst/moodle-tool_dynamic_cohorts).
 Entries below cover the fork only; upstream history lives in that repository.
 
-## [Unreleased]
+## [v5.2-r4] - 2026-10-28
+
+Fourth release of this fork for Moodle 5.2 ($plugin->version = 2026042009). Two new conditions,
+"Competency proficiency" and "Learning plan", available site-wide and in course categories; the
+rules report says where each rule was written; real-time processing evaluates a rule once per event
+and skips events that cannot change it. Plan and audit: `docs/competency-conditions/` on `main`.
 
 ### Added
 
@@ -46,26 +51,6 @@ Entries below cover the fork only; upstream history lives in that repository.
   strings; 2026042006 adds the learning plan condition's strings; 2026042007 the strings for the
   category scope.
 
-### Fixed (audit of 2026-10-28)
-
-- Performance, measured: a competency or learning plan condition answers "is it broken" once per
-  rule and config data instead of three times per processed event; the rules report's Context
-  filter lists only the contexts whose cohorts have a rule, read in one query instead of one per
-  category holding a cohort. Numbers in the audit report (`docs/competency-conditions/` on `main`).
-
-- A category-level user could read the names and ID numbers of competencies outside their
-  category through the condition form, whose fragment labels every selected id it is given. Ids
-  outside the category now get a neutral label, the same whether the competency exists or not.
-- The condition modal described a category-level user's "any course" source as every course; it
-  now says the category's courses, as the saved condition does.
-- The "Rating" help said a course rating always reaches the site-wide rating; core pushes it only
-  when the course pushes ratings to learning plans (the default).
-- A one-course competency condition no longer reprocesses its rules for evidence given in other
-  courses.
-- Stale comments and documentation corrected (this plugin's CLAUDE.md, the README); the report
-  of the audit is `docs/competency-conditions/AUDIT-2026-10-28.md` on `main`. `$plugin->version`
-  2026042009 (strings).
-
 ### Changed
 
 - The rules report has a Context column naming where each rule was written: the system, or the
@@ -91,6 +76,22 @@ Entries below cover the fork only; upstream history lives in that repository.
   was matched and applied site-wide in the triggering request. It is now left to the scheduled
   run. Backport of stage S0 of the competency conditions plan (`docs/competency-conditions/PLAN.md`
   on `main`).
+- Performance, measured: a competency or learning plan condition answers "is it broken" once per
+  rule and config data instead of three times per processed event; the rules report's Context
+  filter lists only the contexts whose cohorts have a rule, read in one query instead of one per
+  category holding a cohort. Numbers in the audit report (`docs/competency-conditions/` on `main`).
+- A category-level user could read the names and ID numbers of competencies outside their
+  category through the condition form, whose fragment labels every selected id it is given. Ids
+  outside the category now get a neutral label, the same whether the competency exists or not.
+- The condition modal described a category-level user's "any course" source as every course; it
+  now says the category's courses, as the saved condition does.
+- The "Rating" help said a course rating always reaches the site-wide rating; core pushes it only
+  when the course pushes ratings to learning plans (the default).
+- A one-course competency condition no longer reprocesses its rules for evidence given in other
+  courses.
+- Stale comments and documentation corrected (this plugin's CLAUDE.md, the README); the report
+  of the audit is `docs/competency-conditions/AUDIT-2026-10-28.md` on `main`. `$plugin->version`
+  2026042009 (strings).
 
 ## [v5.2-r3] - 2026-10-22
 
