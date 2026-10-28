@@ -33,3 +33,27 @@ Feature: Manage dynamic cohort rules
     Then I should see "Rule has been added"
     And I should see "Staff rule"
     And I should see "Staff cohort"
+
+  @javascript
+  Scenario: Add a competency proficiency condition through the condition modal
+    Given the following "core_competency > frameworks" exist:
+      | shortname | idnumber |
+      | Skills    | SKILLS   |
+    And the following "core_competency > competencies" exist:
+      | shortname | idnumber | competencyframework |
+      | Writing   | W1       | SKILLS              |
+      | Reading   | R1       | SKILLS              |
+    And I log in as "admin"
+    And I visit "/admin/tool/dynamic_cohorts/index.php"
+    When I click on "Add a new rule" "link"
+    And I set the field "Rule name" to "Writers"
+    And I set the field "Cohort" to "Staff cohort"
+    And I set the field "condition" to "Competency proficiency"
+    And I click on "Add a condition" "button" in the "Add new rule" "dialogue"
+    And I set the field "Competencies" to "Writing"
+    And I click on "Save changes" "button" in the "Rule condition" "dialogue"
+    Then I should see "Users proficient in at least one of these competencies (site-wide rating): Skills › Writing (W1)" in the "Add new rule" "dialogue"
+    And I should not see "Reading" in the "Add new rule" "dialogue"
+    And I click on "Save changes" "button" in the "Add new rule" "dialogue"
+    And I should see "Rule has been added"
+    And I should see "Writers"

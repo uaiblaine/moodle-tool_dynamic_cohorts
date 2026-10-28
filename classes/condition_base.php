@@ -403,18 +403,31 @@ abstract class condition_base {
     }
 
     /**
-     * SQL restricting a cohort table to the cohorts usable from a scope.
-     *
-     * The cohorts of the scope and of its subcategories, whatever their visibility, plus the
-     * visible cohorts of its parent contexts, which is how core offers cohorts below a context
-     * (cohort_get_available_cohorts()). Read from the tables alone, not from the current user, so
-     * it means the same thing in a rule's processing as in its form.
+     * SQL restricting a cohort table to the cohorts usable from a scope: {@see self::scoped_contexts_sql()}.
      *
      * @param string $cohortalias Alias of the {cohort} table.
      * @param \core\context $scope Course category context.
      * @return array [string $sql, array $params]
      */
     public static function scoped_cohorts_sql(string $cohortalias, \core\context $scope): array {
+        return self::scoped_contexts_sql("{$cohortalias}.contextid", "{$cohortalias}.visible", $scope);
+    }
+
+    /**
+     * SQL restricting rows that live in a context and carry a visibility flag to those usable from a scope.
+     *
+     * The rows of the scope and of its subcategories, whatever their visibility, plus the visible
+     * rows of its parent contexts, which is how core offers cohorts below a context
+     * (cohort_get_available_cohorts()). Competency frameworks and learning plan templates carry the
+     * same two columns. Read from the tables alone, not from the current user, so it means the same
+     * thing in a rule's processing as in its form.
+     *
+     * @param string $contextcolumn Qualified context id column, e.g. "c.contextid".
+     * @param string $visiblecolumn Qualified visibility column, 1 for visible, e.g. "c.visible".
+     * @param \core\context $scope Course category context.
+     * @return array [string $sql, array $params]
+     */
+    public static function scoped_contexts_sql(string $contextcolumn, string $visiblecolumn, \core\context $scope): array {
         global $DB;
 
         $ctxalias = condition_sql::generate_table_alias();
@@ -425,14 +438,14 @@ abstract class condition_base {
         $parentsql = '';
         if ($parents = $scope->get_parent_context_ids()) {
             [$insql, $inparams] = $DB->get_in_or_equal($parents, SQL_PARAMS_NAMED, condition_sql::generate_param_alias());
-            $parentsql = " OR ({$cohortalias}.contextid {$insql} AND {$cohortalias}.visible = 1)";
+            $parentsql = " OR ({$contextcolumn} {$insql} AND {$visiblecolumn} = 1)";
             $params += $inparams;
         }
 
-        $sql = "({$cohortalias}.contextid IN (SELECT {$ctxalias}.id
-                                                FROM {context} {$ctxalias}
-                                               WHERE {$ctxalias}.id = :{$idparam}
-                                                  OR " . $DB->sql_like("{$ctxalias}.path", ":{$pathparam}") . ")
+        $sql = "({$contextcolumn} IN (SELECT {$ctxalias}.id
+                                        FROM {context} {$ctxalias}
+                                       WHERE {$ctxalias}.id = :{$idparam}
+                                          OR " . $DB->sql_like("{$ctxalias}.path", ":{$pathparam}") . ")
                  {$parentsql})";
 
         return [$sql, $params];
@@ -457,6 +470,21 @@ abstract class condition_base {
      */
     public function get_events(): array {
         return [];
+    }
+
+    /**
+     * Whether an event from get_events() can change this configured condition's result.
+     *
+     * Asked of each configured condition of a real-time rule: the observer processes the rule for
+     * the event's user when any of its conditions subscribed to the event says yes. Runs on the hot
+     * path of every event the condition subscribes to, so an override decides from the event (its
+     * record snapshots included) and the config data, without querying the database.
+     *
+     * @param \core\event\base $event An event from get_events().
+     * @return bool
+     */
+    public function is_relevant_event(\core\event\base $event): bool {
+        return true;
     }
 
     /**
