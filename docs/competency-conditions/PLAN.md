@@ -253,7 +253,7 @@ Config:
 | Referent picker | Competencies of frameworks usable from the scope (`scoped_contexts_sql`) | Templates usable from the scope |
 | Course source | `course`: course under the scope; `anycourse`: courses under the scope only | n/a |
 | Global source | Q1 | n/a |
-| `rechecks_scope_when_processed()` | true: a framework's context can change | true: a template's context can change |
+| `rechecks_scope_when_processed()` | true: a framework's context never changes (core refuses it), but its category can move and its visibility change; so can the one-course source's course | true: the same for a template |
 
 Both return `supports_category_scope() = true`. As built-ins they are on for category users while
 the `categoryconditions` setting has never been saved (D3); a site that saved it must tick them.
@@ -312,7 +312,7 @@ three).
 | S1 | F2 and once-per-event processing, `scoped_contexts_sql()`; F1 dropped. | **Done 2026-10-28**: existing suite green unchanged; fixture conditions drive the observer (irrelevant event, two classes, plan owner); gates BO-BR and AS swept on both families. |
 | S2 | `competency_proficiency`, all sources, unscoped; picker per Q3. | **Done 2026-10-28**: condition, `tool_dynamic_cohorts_search_competencies` and `competency_selector` AMD; gates BS-CC swept on both families; version 2026100505. Not offered in categories until S4; the modal's autocomplete is not exercised by Behat until S4. |
 | S3 | `learning_plan`, unscoped, self-reference guard. | **Done 2026-10-28**: condition, version 2026100506; template list required (Q2), self-synced template broken with an explanation (Q4). Not offered in categories until S4. |
-| S4 | Category scope for both (Q1, Q2), README (conditions, what they read), Behat smoke (add one competency condition through the modal). | Scope refusal tested at save, not only in the modal; the search's scoped branch (`scoped_contexts_sql` on frameworks, dead until then) tested from a category. |
+| S4 | Category scope for both (Q1, Q2), README (conditions, what they read), Behat smoke (add one competency condition through the modal). | **Done 2026-10-28**: scope refusal tested at save; the search's scoped branch tested from a category; "any course" held to the category's courses when written there; Behat adds a competency condition through the modal's AJAX autocomplete; version 2026100507; gates CM-CT. |
 
 ## Tests
 
