@@ -65,4 +65,12 @@ $functions = [
         'capabilities'    => 'tool/dynamic_cohorts:manage',
         'ajax'            => true,
     ],
+    'tool_dynamic_cohorts_search_competencies' => [
+        'classname'       => 'tool_dynamic_cohorts\external\search_competencies',
+        'methodname'      => 'execute',
+        'description'     => 'Searches competencies for the competency proficiency condition',
+        'type'            => 'read',
+        'capabilities'    => 'tool/dynamic_cohorts:manage',
+        'ajax'            => true,
+    ],
 ];

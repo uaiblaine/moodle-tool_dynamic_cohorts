@@ -82,6 +82,11 @@ Conditions are simple predicates which assert something about a user in the syst
 * Authentication method (Manual, SAML and etc)
 * Cohort fields (if a user is a member of cohort(s) matching specific cohort fields like cohort name, context, custom fields and etc)
 * Cohort membership (if a user is a member of cohort(s)).
+* Competency proficiency (if a user is, or is not, proficient in at least one or all of up to 50
+  competencies). It reads the site-wide rating, the rating given in one course, or the rating given
+  in any course, straight from core's competency tables, so a rating keeps counting after its
+  competency is unlinked from the course or competencies are disabled. It is processed in real
+  time when a rating of one of its competencies changes. Not yet available in course categories.
 * Course completed (if a user has completed a course).
 * Course not completed (if a user has not completed a course).
 * User created time (time since a user was created).
@@ -160,7 +165,8 @@ as usual (_the category > More > Cohorts_, which needs `moodle/cohort:manage`).
 - Pick only cohorts of the category (or its subcategories) that they may assign to.
 - Use only the conditions enabled in the setting _Conditions available in course categories_
   (_Site administration > Users > Accounts > Dynamic cohorts > Settings_). Every built-in condition
-  is enabled by default; conditions from other plugins stay off until they support categories.
+  is enabled by default, except Competency proficiency for now; conditions from other plugins stay
+  off until they support categories.
 - Refer only to what lies in the category. Course conditions take its courses. The role condition
   takes the category or one of its courses, never the system level. Cohort conditions take the
   category's cohorts and the visible cohorts above it. Profile conditions offer identity and

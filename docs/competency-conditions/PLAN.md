@@ -310,9 +310,9 @@ three).
 |---|---|---|
 | S0 | F0 with its test; the probe above repeated on MariaDB 12.3 (a throwaway PHPUnit test with `EXPLAIN`/timings, through `mdl ci --db mariadb`). | **Done 2026-10-27**: F0 test reddens with the guard removed; numbers above; "all" moved to the correlated count. |
 | S1 | F2 and once-per-event processing, `scoped_contexts_sql()`; F1 dropped. | **Done 2026-10-28**: existing suite green unchanged; fixture conditions drive the observer (irrelevant event, two classes, plan owner); gates BO-BR and AS swept on both families. |
-| S2 | `competency_proficiency`, all sources, unscoped; picker per Q3. | Condition tests below; lang `en` + `pt_br`. |
+| S2 | `competency_proficiency`, all sources, unscoped; picker per Q3. | **Done 2026-10-28**: condition, `tool_dynamic_cohorts_search_competencies` and `competency_selector` AMD; gates BS-CC swept on both families; version 2026100505. Not offered in categories until S4; the modal's autocomplete is not exercised by Behat until S4. |
 | S3 | `learning_plan`, unscoped, self-reference guard. | Condition tests below. |
-| S4 | Category scope for both (Q1, Q2), README (conditions, what they read), Behat smoke (add one competency condition through the modal). | Scope refusal tested at save, not only in the modal. |
+| S4 | Category scope for both (Q1, Q2), README (conditions, what they read), Behat smoke (add one competency condition through the modal). | Scope refusal tested at save, not only in the modal; the search's scoped branch (`scoped_contexts_sql` on frameworks, dead until then) tested from a category. |
 
 ## Tests
 
