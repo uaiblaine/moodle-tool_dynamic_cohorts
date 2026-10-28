@@ -149,10 +149,49 @@ class rules extends system_report {
            which would name categories outside a category manager's subtree. */
         if ($context->contextlevel == CONTEXT_SYSTEM) {
             $this->add_filter_from_entity('cohort:context');
-            $this->get_filter('cohort:context')->set_header(new lang_string('rulecontext', 'tool_dynamic_cohorts'));
+            $this->get_filter('cohort:context')
+                ->set_header(new lang_string('rulecontext', 'tool_dynamic_cohorts'))
+                ->set_options_callback([self::class, 'get_rule_context_options']);
         }
 
         $this->set_initial_sort_column('rule_entity:name', SORT_ASC);
+    }
+
+    /**
+     * Options of the context filter: the contexts whose cohorts have a rule, in one query.
+     *
+     * Core's own callback offers every context holding a cohort, rule or not, and reads each
+     * category's name with a query of its own.
+     *
+     * @return array Context id => name, escaped as core's cohort entity names it.
+     */
+    public static function get_rule_context_options(): array {
+        global $DB;
+
+        $ctxfields = \core\context_helper::get_preload_record_columns_sql('ctx');
+        $records = $DB->get_records_sql(
+            "SELECT DISTINCT {$ctxfields}, cc.name AS categoryname
+               FROM {tool_dynamic_cohorts} r
+               JOIN {cohort} c ON c.id = r.cohortid
+               JOIN {context} ctx ON ctx.id = c.contextid
+          LEFT JOIN {course_categories} cc ON cc.id = ctx.instanceid AND ctx.contextlevel = :categorylevel",
+            ['categorylevel' => CONTEXT_COURSECAT]
+        );
+
+        $options = [];
+        foreach ($records as $record) {
+            // Read before preloading, which removes the ctx fields from the record.
+            $name = $record->categoryname;
+            $contextid = (int) $record->ctxid;
+            \core\context_helper::preload_from_record($record);
+            $context = \core\context::instance_by_id($contextid);
+            $options[$context->id] = $context->contextlevel == CONTEXT_COURSECAT
+                ? format_string((string) $name, true, ['context' => $context])
+                : $context->get_context_name(false);
+        }
+        \core_collator::asort($options);
+
+        return $options;
     }
 
     /**
