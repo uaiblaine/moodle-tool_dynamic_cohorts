@@ -256,6 +256,35 @@ final class rules_page_test extends \advanced_testcase {
     }
 
     /**
+     * The context column names where each rule was written; its filter is offered at the system level only.
+     */
+    public function test_report_context_column(): void {
+        $this->setAdminUser();
+        $parameters = ['contextid' => $this->contexts['system']->id];
+        $result = retrieve::execute(rules::class, $parameters, 'tool_dynamic_cohorts', '', 0, [], 0, 100);
+
+        // Columns: rule name, description, cohort, context.
+        $contexts = [];
+        foreach ($result['data']['rows'] as $row) {
+            $contexts[strip_tags($row['columns'][0])] = $row['columns'][3];
+        }
+        $this->assertSame(get_string('coresystem'), $contexts['Rule system']);
+        $this->assertSame($this->contexts['a1']->get_context_name(false), $contexts['Rule a1']);
+        $this->assertSame($this->contexts['b']->get_context_name(false), $contexts['Rule b']);
+        // A rule whose cohort is gone has no context to name.
+        $this->assertSame('', $contexts['Rule orphan']);
+
+        $system = system_report_factory::create(rules::class, $this->contexts['system'], 'tool_dynamic_cohorts');
+        $this->assertArrayHasKey('cohort:context', $system->get_filters());
+
+        // Not on a category page: its options would name categories outside the manager's subtree.
+        $this->setUser($this->manager);
+        $category = system_report_factory::create(rules::class, $this->contexts['a'], 'tool_dynamic_cohorts');
+        $this->assertArrayNotHasKey('cohort:context', $category->get_filters());
+        $this->assertNotNull($category->get_column('cohort:context'));
+    }
+
+    /**
      * Row actions are decided in each rule's own context, not the page's.
      */
     public function test_report_row_actions(): void {
