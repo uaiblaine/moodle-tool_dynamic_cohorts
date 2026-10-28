@@ -879,4 +879,54 @@ final class condition_scope_test extends \advanced_testcase {
 
         $this->assertTrue($this->rule->is_broken(true));
     }
+
+    /**
+     * The condition form labels selected competencies only from frameworks usable from the category.
+     *
+     * Its fragment takes the selected ids from the client, so an id from elsewhere gets a neutral
+     * label, the same whether the competency exists or not.
+     */
+    public function test_competency_form_labels_only_usable_competencies(): void {
+        global $CFG, $DB;
+        require_once($CFG->dirroot . '/admin/tool/dynamic_cohorts/lib.php');
+
+        $competencies = $this->create_competencies();
+        $frameworkname = fn(string $key) => $DB->get_field_sql(
+            'SELECT f.shortname FROM {competency_framework} f JOIN {competency} c ON c.competencyframeworkid = f.id WHERE c.id = ?',
+            [$competencies[$key]]
+        );
+        $render = fn(array $ids) => tool_dynamic_cohorts_output_fragment_condition_form([
+            'context' => $this->contexts['a'],
+            'classname' => self::NS . 'competency_proficiency',
+            'defaults' => json_encode(['configdata' => json_encode(['competencyids' => $ids])]),
+        ]);
+
+        $this->setUser($this->manager);
+        $html = $render([$competencies['a'], $competencies['b'], 999999]);
+        $this->assertStringContainsString($frameworkname('a'), $html);
+        $this->assertStringNotContainsString($frameworkname('b'), $html);
+        $this->assertStringContainsString(get_string('competencyunlabelled', 'tool_dynamic_cohorts', $competencies['b']), $html);
+        // A missing id reads the same as one outside the category.
+        $this->assertStringContainsString(get_string('competencyunlabelled', 'tool_dynamic_cohorts', 999999), $html);
+
+        // The control: an administrator gets every label.
+        $this->setAdminUser();
+        $this->assertStringContainsString($frameworkname('b'), $render([$competencies['b']]));
+    }
+
+    /**
+     * The condition modal describes "any course" as the category's courses before the save records the scope.
+     */
+    public function test_competency_modal_describes_the_category(): void {
+        $competencies = $this->create_competencies();
+        $this->setUser($this->manager);
+        $_POST['sesskey'] = sesskey();
+        $config = $this->competency_config($competencies['systemvisible'], competency_proficiency::SOURCE_ANY_COURSE);
+        $data = json_encode(http_build_query($config + ['id' => 0, 'sortorder' => 0,
+            '_qf__tool_dynamic_cohorts_condition_form' => 1, 'sesskey' => sesskey()], '', '&'));
+
+        $classname = self::NS . 'competency_proficiency';
+        $result = \tool_dynamic_cohorts\external\condition_form::submit($classname, $data, $this->contexts['a']->id);
+        $this->assertStringContainsString('rated in any course of the category', $result['description']);
+    }
 }

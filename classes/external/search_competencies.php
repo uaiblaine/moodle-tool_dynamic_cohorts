@@ -35,7 +35,7 @@ use tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition\competency_profici
  * @license     http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class search_competencies extends external_api {
-    /** Results returned at most; the selector asks the user to narrow the search beyond that. */
+    /** Results returned at most; beyond that, the user narrows the search by typing more. */
     public const MAX_RESULTS = 50;
 
     /**
