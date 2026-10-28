@@ -51,20 +51,20 @@ Tables and indexes (`lib/db/install.xml`):
   leaves.
 - `delete_template($id, $deleteplans)` deletes the template's plans or unlinks them (`templateid`
   NULL, `origtemplateid` kept, event `competency_plan_unlinked`).
-- **`competency_plan_created`, `_deleted`, `_updated` and `_viewed` carry no `relateduserid`**
-  (`lib/classes/event/competency_plan_*.php`); the other nine plan events do. A plan's context is
-  the owner's user context, so `contextinstanceid` is the owner on all thirteen.
+- **Every plan event names the plan owner as its related user.** `competency_plan_created`,
+  `_deleted`, `_updated` and `_viewed` pass none (`lib/classes/event/competency_plan_*.php`), but
+  `\core\event\base::create()` fills `relateduserid` from a user context when none is passed
+  (`lib/classes/event/base.php:237`), and a plan's context is its owner's. Corrected in S1: this
+  plan first read the four `create_from_plan()` methods only and concluded the opposite; the S1
+  test of a plan created by another user proved the owner is processed.
 
 In this plugin (`main`, 2026100503):
 
-- `observer::get_userid_from_event()` falls back to the event's `userid` (the actor) when there is
-  no `relateduserid`. For a plan created by the cohort sync task that is the cron user, so the
-  owner is not processed in real time.
 - **Latent defect: an event with neither user processes the whole rule inside the request that
   fired it.** `get_userid_from_event()` returns 0, `process_rule($rule, 0)` treats 0 as "no user"
   (`get_matching_users()` and `build_sql_data()` test `if ($userid)`), so every user is matched and
   the cohort rewritten in the triggering request. Reachable today by any subscribed event fired by
-  a CLI script with no user set; plan events from such a script would hit it.
+  a CLI script with no user set that carries no related user.
 - `build_sql_data()` concatenates every condition's JOIN and combines only the WHERE fragments with
   the rule's operator (repo `CLAUDE.md`: joins must be neutral). `user_enrolment` already filters
   with `EXISTS` / `NOT EXISTS` in WHERE; `cohort_membership` with a LEFT JOIN on a derived table
@@ -221,7 +221,8 @@ Config:
 - **Events**: the twelve plan events that change existence, template link or status:
   `competency_plan_created`, `_deleted`, `_completed`, `_reopened`, `_approved`, `_unapproved`,
   `_review_requested`, `_review_request_cancelled`, `_review_started`, `_review_stopped`,
-  `_unlinked`, and `_updated` only if an overdue state is added (Q6). User from the context (F1);
+  `_unlinked`, and `_updated` only if an overdue state is added (Q6). User: the related user, which
+  core fills in with the owner;
   relevance from the plan snapshot's template (F2), true when there is no snapshot.
 
 ### Framework changes (no behaviour change for the twelve conditions)
@@ -229,14 +230,17 @@ Config:
 - **F0, the latent defect.** The observer never calls `process_rule()` with a user id below 1; an
   event that names nobody is left to the scheduled run. One test fires an event with no user and
   asserts the cohort of a rule matching two other users is unchanged.
-- **F1, `condition_base::get_event_userid(base $event): ?int`.** Today's logic
-  (`relateduserid`, else `userid`) moves into the default; `learning_plan` overrides it with
-  `contextinstanceid` when the event's context level is `CONTEXT_USER`. The observer asks the
-  condition class that subscribed.
+- **F1, dropped in S1.** A per-condition `get_event_userid()` was planned for plan events thought
+  to name only the actor; core names the owner (verified facts), so the observer keeps one user per
+  event. A test pins the behaviour the plan condition relies on.
 - **F2, `condition_base::is_relevant_event(base $event): bool`, default true.** Called on the
   rule's configured condition instances of the subscribing class (rules and condition records come
   from the existing caches). The rule is processed when any of them is relevant. Sound because an
   event that no subscribed condition of a rule finds relevant cannot change that rule's result.
+  A class that keeps the default is answered without building its instances (one reflection per
+  class and process), so the twelve existing conditions cost nothing more. The same change
+  processes a rule **once per event**: before it, a rule holding two classes subscribed to the same
+  event (`user_profile` and `user_profile_interests` both take `user_updated`) was evaluated twice.
 - **Generalised scope helper.** `scoped_cohorts_sql()` becomes a wrapper over
   `scoped_contexts_sql(string $contextcol, string $visiblecol, context $scope)`, reused for
   `{competency_framework}` and `{competency_template}`: the scope and its subcategories whatever the
@@ -305,7 +309,7 @@ three).
 | Stage | Scope | Done when |
 |---|---|---|
 | S0 | F0 with its test; the probe above repeated on MariaDB 12.3 (a throwaway PHPUnit test with `EXPLAIN`/timings, through `mdl ci --db mariadb`). | **Done 2026-10-27**: F0 test reddens with the guard removed; numbers above; "all" moved to the correlated count. |
-| S1 | F1, F2, `scoped_contexts_sql()`. | Existing suite green unchanged; observer tests for the hooks (one subscribed condition irrelevant: rule not processed). |
+| S1 | F2 and once-per-event processing, `scoped_contexts_sql()`; F1 dropped. | **Done 2026-10-28**: existing suite green unchanged; fixture conditions drive the observer (irrelevant event, two classes, plan owner); gates BO-BR and AS swept on both families. |
 | S2 | `competency_proficiency`, all sources, unscoped; picker per Q3. | Condition tests below; lang `en` + `pt_br`. |
 | S3 | `learning_plan`, unscoped, self-reference guard. | Condition tests below. |
 | S4 | Category scope for both (Q1, Q2), README (conditions, what they read), Behat smoke (add one competency condition through the modal). | Scope refusal tested at save, not only in the modal. |
@@ -327,7 +331,8 @@ config, run `get_sql()` through `$DB` on both drivers. Data through core's compe
   cohort, framework or template moved out of the recorded scope.
 - Observer: a rating raised through `api::add_evidence()` in a real-time rule adds the user; an
   `ACTION_LOG` evidence or another competency does not process the rule (F2, with the control that
-  a relevant one does); a plan created by another user processes the owner, not the actor (F1).
+  a relevant one does); a plan created by another user processes the owner, not the actor (pinned
+  in S1).
 - Description: names with `&` and `<` escaped once.
 - Mutation-check every guard (`mdl mutate --fast`, pgsql and MariaDB): the relevance filter, the
   self-reference guard, `COUNT(DISTINCT)`, the scope helper, F0.
