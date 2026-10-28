@@ -213,6 +213,7 @@ $string['rule_entity.id'] = 'ID';
 $string['rule_entity.name'] = 'Name';
 $string['rule_entity.realtime'] = 'Realtime processing';
 $string['rule_entity.status'] = 'Status';
+$string['rulecontext'] = 'Context';
 $string['ruledisabledpleasereview'] = 'Newly created or updated rules are disabled by default. Please review the rule below and enable it when ready.';
 $string['settings:bulkprocessingevents'] = 'Trigger events during bulk processing';
 $string['settings:bulkprocessingevents_desc'] = 'When enabled, \\core\\event\\cohort_member_added and \\core\\event\\cohort_member_removed events are triggered for each user that bulk processing adds to or removes from a cohort. This reduces the performance benefit of bulk processing (an event is created and triggered per user), but keeps the plugins and observers that rely on these events, such as cohort enrolment sync, working.';
