@@ -86,8 +86,9 @@ final class search_competencies_test extends \advanced_testcase {
     }
 
     /**
-     * A user without the plugin's capabilities is refused; so is a category-level manager while the
-     * condition is not available in course categories.
+     * A user without the plugin's capabilities is refused. A category manager is served the
+     * competencies of the frameworks usable from their category, and refused once the condition
+     * is switched off for categories.
      */
     public function test_access(): void {
         $this->resetAfterTest();
@@ -98,7 +99,21 @@ final class search_competencies_test extends \advanced_testcase {
         $this->assertSame('nopermissions', $response['exception']->errorcode);
 
         $category = $this->getDataGenerator()->create_category();
+        $sibling = $this->getDataGenerator()->create_category();
         $context = \core\context\coursecat::instance($category->id);
+        $generator = $this->getDataGenerator()->get_plugin_generator('core_competency');
+        $frameworks = [
+            'own hidden' => ['contextid' => $context->id, 'visible' => 0],
+            'sibling' => ['contextid' => \core\context\coursecat::instance($sibling->id)->id, 'visible' => 1],
+            'system visible' => ['contextid' => \core\context\system::instance()->id, 'visible' => 1],
+            'system hidden' => ['contextid' => \core\context\system::instance()->id, 'visible' => 0],
+        ];
+        $ids = [];
+        foreach ($frameworks as $name => $record) {
+            $framework = $generator->create_framework($record + ['shortname' => $name]);
+            $ids[$name] = (int) $generator->create_competency(['competencyframeworkid' => $framework->get('id')])->get('id');
+        }
+
         $manager = $this->getDataGenerator()->create_user();
         $roleid = $this->getDataGenerator()->create_role();
         assign_capability('tool/dynamic_cohorts:manage', CAP_ALLOW, $roleid, $context->id);
@@ -107,11 +122,20 @@ final class search_competencies_test extends \advanced_testcase {
         $this->setUser($manager);
 
         $response = $this->call('', $context->id);
+        $this->assertFalse($response['error']);
+        $found = array_column($response['data'], 'id');
+        sort($found);
+        $expected = [$ids['own hidden'], $ids['system visible']];
+        sort($expected);
+        $this->assertSame($expected, $found);
+
+        set_config('categoryconditions', '', 'tool_dynamic_cohorts');
+        $response = $this->call('', $context->id);
         $this->assertTrue($response['error']);
         $this->assertSame('conditionnotincategory', $response['exception']->errorcode);
 
-        // The control: an administrator searching from the same category is served.
+        // The control: an administrator searching from the same category is served everything.
         $this->setAdminUser();
-        $this->assertFalse($this->call('', $context->id)['error']);
+        $this->assertCount(4, $this->call('', $context->id)['data']);
     }
 }

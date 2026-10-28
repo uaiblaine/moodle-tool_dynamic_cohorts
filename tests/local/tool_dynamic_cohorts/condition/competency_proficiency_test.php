@@ -298,6 +298,8 @@ final class competency_proficiency_test extends \advanced_testcase {
         $this->assertSame('1=0', $missing->get_sql()->get_where());
 
         $this->assertTrue($this->condition($this->config([]))->is_broken());
+        // A source the form never offers, which would read every course's ratings unrestricted.
+        $this->assertTrue($this->condition($this->config(['c1'], ['source' => 9]))->is_broken());
 
         $nocourse = $this->condition($this->config(['c1'], [
             'source' => competency_proficiency::SOURCE_COURSE,
