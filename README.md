@@ -87,6 +87,11 @@ Conditions are simple predicates which assert something about a user in the syst
   in any course, straight from core's competency tables, so a rating keeps counting after its
   competency is unlinked from the course or competencies are disabled. It is processed in real
   time when a rating of one of its competencies changes. Not yet available in course categories.
+* Learning plan (if a user has, or has not, a learning plan created from given templates, in given
+  statuses, optionally counting plans since unlinked from the template). Individual plans, which
+  have no template, never count. A template whose cohort sync fills the rule's own cohort stops
+  the rule, because core never removes a plan when a member leaves. Processed in real time when a
+  plan is created, deleted, changes status or is unlinked. Not yet available in course categories.
 * Course completed (if a user has completed a course).
 * Course not completed (if a user has not completed a course).
 * User created time (time since a user was created).
@@ -165,7 +170,7 @@ as usual (_the category > More > Cohorts_, which needs `moodle/cohort:manage`).
 - Pick only cohorts of the category (or its subcategories) that they may assign to.
 - Use only the conditions enabled in the setting _Conditions available in course categories_
   (_Site administration > Users > Accounts > Dynamic cohorts > Settings_). Every built-in condition
-  is enabled by default, except Competency proficiency for now; conditions from other plugins stay
+  is enabled by default, except Competency proficiency and Learning plan for now; conditions from other plugins stay
   off until they support categories.
 - Refer only to what lies in the category. Course conditions take its courses. The role condition
   takes the category or one of its courses, never the system level. Cohort conditions take the
