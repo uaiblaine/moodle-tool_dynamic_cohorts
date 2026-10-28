@@ -25,6 +25,8 @@ use tool_dynamic_cohorts\condition_manager;
 use tool_dynamic_cohorts\rule;
 use tool_dynamic_cohorts\rule_form;
 use tool_dynamic_cohorts\rule_manager;
+use tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition\competency_proficiency;
+use tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition\learning_plan;
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -309,7 +311,7 @@ final class condition_scope_test extends \advanced_testcase {
      */
     public function test_category_conditions_setting(): void {
         // Unset: every built-in condition.
-        $this->assertCount(12, condition_manager::category_conditions());
+        $this->assertCount(14, condition_manager::category_conditions());
 
         set_config('categoryconditions', self::NS . 'course_completed', 'tool_dynamic_cohorts');
         $this->assertSame([self::NS . 'course_completed'], condition_manager::category_conditions());
@@ -691,5 +693,190 @@ final class condition_scope_test extends \advanced_testcase {
         // The control: the category A it was written in exists.
         $this->assertFalse($build((int) $this->contexts['a']->id)->is_broken());
         $this->assertTrue($build(999999)->is_broken());
+    }
+
+    /**
+     * Frameworks of A (hidden), B, the system (visible and hidden), each with one competency.
+     *
+     * @return int[] Competency ids by key: a, b, systemvisible, systemhidden.
+     */
+    private function create_competencies(): array {
+        $generator = $this->getDataGenerator()->get_plugin_generator('core_competency');
+        $frameworks = [
+            'a' => ['contextid' => $this->contexts['a']->id, 'visible' => 0],
+            'b' => ['contextid' => $this->contexts['b']->id, 'visible' => 1],
+            'systemvisible' => ['contextid' => $this->contexts['system']->id, 'visible' => 1],
+            'systemhidden' => ['contextid' => $this->contexts['system']->id, 'visible' => 0],
+        ];
+        $ids = [];
+        foreach ($frameworks as $key => $record) {
+            $framework = $generator->create_framework($record);
+            $ids[$key] = (int) $generator->create_competency(['competencyframeworkid' => $framework->get('id')])->get('id');
+        }
+        return $ids;
+    }
+
+    /**
+     * Config of a competency proficiency condition on one competency and source.
+     *
+     * @param int $competencyid Competency id.
+     * @param int $source One of the SOURCE_ constants.
+     * @param int $courseid Course of the one-course source.
+     * @return array
+     */
+    private function competency_config(int $competencyid, int $source, int $courseid = 0): array {
+        return ['competencyids' => [$competencyid], 'match' => competency_proficiency::MATCH_ANY,
+            'state' => competency_proficiency::STATE_PROFICIENT, 'source' => $source, 'courseid' => $courseid];
+    }
+
+    /**
+     * Competencies come from the frameworks usable from the category; the site-wide rating only from its own.
+     */
+    public function test_competency_proficiency(): void {
+        $competencies = $this->create_competencies();
+        $global = competency_proficiency::SOURCE_GLOBAL;
+        $anycourse = competency_proficiency::SOURCE_ANY_COURSE;
+        $course = competency_proficiency::SOURCE_COURSE;
+        $this->setUser($this->manager);
+
+        $this->assert_out_of_scope('competency_proficiency', $this->competency_config($competencies['b'], $anycourse));
+        $this->assert_out_of_scope('competency_proficiency', $this->competency_config($competencies['systemhidden'], $anycourse));
+        // One usable competency does not carry an unusable one with it.
+        $mixed = ['competencyids' => [$competencies['a'], $competencies['b']]] + $this->competency_config(0, $anycourse);
+        $this->assert_out_of_scope('competency_proficiency', $mixed);
+        // Q1: the site-wide rating of a framework from above is earned anywhere on the site.
+        $this->assert_out_of_scope('competency_proficiency', $this->competency_config($competencies['systemvisible'], $global));
+        $incourseb = $this->competency_config($competencies['systemvisible'], $course, (int) $this->courses['b']->id);
+        $this->assert_out_of_scope('competency_proficiency', $incourseb);
+
+        // The controls: the category's own framework site-wide, one from above in its courses; the administrator free.
+        $this->save_with('competency_proficiency', $this->competency_config($competencies['a'], $global));
+        $this->save_with('competency_proficiency', $this->competency_config($competencies['systemvisible'], $anycourse));
+        $incoursea1 = $this->competency_config($competencies['systemvisible'], $course, (int) $this->courses['a1']->id);
+        $this->save_with('competency_proficiency', $incoursea1);
+        $this->setAdminUser();
+        $this->save_with('competency_proficiency', $this->competency_config($competencies['b'], $global));
+        $this->assertCount(1, $this->rule->get_condition_records());
+    }
+
+    /**
+     * Written in a category, "any course" counts only the ratings given in the category's courses.
+     */
+    public function test_competency_any_course_is_held_to_the_category(): void {
+        global $DB;
+
+        $competencies = $this->create_competencies();
+        $generator = $this->getDataGenerator()->get_plugin_generator('core_competency');
+        $inside = (int) $this->getDataGenerator()->create_user()->id;
+        $outside = (int) $this->getDataGenerator()->create_user()->id;
+        foreach ([$inside => 'a1', $outside => 'b'] as $userid => $course) {
+            $generator->create_user_competency_course([
+                'userid' => $userid,
+                'competencyid' => $competencies['systemvisible'],
+                'courseid' => $this->courses[$course]->id,
+                'grade' => 2,
+                'proficiency' => 1,
+            ]);
+        }
+        $config = $this->competency_config($competencies['systemvisible'], competency_proficiency::SOURCE_ANY_COURSE);
+
+        $DB->set_field('course_categories', 'name', 'Cat & co', ['id' => $this->contexts['a']->instanceid]);
+
+        $this->setUser($this->manager);
+        $this->rule = $this->save_with('competency_proficiency', $config);
+        $this->assertSame([$inside], $this->matched());
+        $saved = condition_base::get_instance(0, array_values($this->rule->get_condition_records())[0]->to_record());
+        $this->assertStringContainsString('rated in any course of the category "Cat &amp; co"', $saved->get_config_description());
+        $this->assertStringNotContainsString('&amp;amp;', $saved->get_config_description());
+
+        // The control: written by an administrator, every course counts.
+        $this->setAdminUser();
+        $this->rule = $this->save_with('competency_proficiency', $config);
+        $this->assertSame([$inside, $outside], $this->matched());
+    }
+
+    /**
+     * A framework from above hidden after the save breaks the rule while it is processed.
+     */
+    public function test_hidden_framework_breaks_competency_proficiency(): void {
+        $competencies = $this->create_competencies();
+        $this->setUser($this->manager);
+        $config = $this->competency_config($competencies['systemvisible'], competency_proficiency::SOURCE_ANY_COURSE);
+        $this->rule = $this->save_with('competency_proficiency', $config);
+        $this->assertFalse($this->rule->is_broken(true));
+
+        $framework = \core_competency\competency::get_record(['id' => $competencies['systemvisible']])->get_framework();
+        $framework->set('visible', 0);
+        $framework->update();
+
+        $this->assertTrue($this->rule->is_broken(true));
+    }
+
+    /**
+     * Learning plan templates come from those usable from the category.
+     */
+    public function test_learning_plan(): void {
+        $generator = $this->getDataGenerator()->get_plugin_generator('core_competency');
+        $specs = [
+            'a' => [$this->contexts['a'], 0],
+            'b' => [$this->contexts['b'], 1],
+            'systemvisible' => [$this->contexts['system'], 1],
+            'systemhidden' => [$this->contexts['system'], 0],
+        ];
+        $templates = [];
+        foreach ($specs as $key => [$context, $visible]) {
+            $templates[$key] = (int) $generator->create_template(['contextid' => $context->id, 'visible' => $visible])->get('id');
+        }
+        $config = fn(string $key) => ['operator' => learning_plan::OPERATOR_HAS, 'templateids' => [$templates[$key]],
+            'includeunlinked' => 0, 'statuses' => []];
+
+        $this->setUser($this->manager);
+        $this->assert_out_of_scope('learning_plan', $config('b'));
+        $this->assert_out_of_scope('learning_plan', $config('systemhidden'));
+        $this->assert_out_of_scope('learning_plan', ['templateids' => [$templates['a'], $templates['b']]] + $config('a'));
+
+        // The controls: the category's own template, a visible one from above; the administrator free.
+        $this->save_with('learning_plan', $config('a'));
+        $this->save_with('learning_plan', $config('systemvisible'));
+        $this->setAdminUser();
+        $this->save_with('learning_plan', $config('b'));
+        $this->assertCount(1, $this->rule->get_condition_records());
+    }
+
+    /**
+     * The learning plan form offers only the templates usable from the category.
+     */
+    public function test_learning_plan_form_offers_scoped_templates(): void {
+        $generator = $this->getDataGenerator()->get_plugin_generator('core_competency');
+        $generator->create_template(['shortname' => 'Template of A', 'contextid' => $this->contexts['a']->id]);
+        $generator->create_template(['shortname' => 'Template of B', 'contextid' => $this->contexts['b']->id]);
+
+        $condition = learning_plan::get_instance();
+        $options = fn() => array_values((new \ReflectionMethod($condition, 'get_template_options'))->invoke($condition));
+
+        $condition->set_scope($this->contexts['a']);
+        $this->assertSame(['Template of A'], $options());
+
+        // The control: unscoped, every template.
+        $condition->set_scope(null);
+        $this->assertSame(['Template of A', 'Template of B'], $options());
+    }
+
+    /**
+     * A template from above hidden after the save breaks a learning plan rule while it is processed.
+     */
+    public function test_hidden_template_breaks_learning_plan(): void {
+        $generator = $this->getDataGenerator()->get_plugin_generator('core_competency');
+        $template = $generator->create_template(['contextid' => $this->contexts['system']->id, 'visible' => 1]);
+
+        $this->setUser($this->manager);
+        $this->rule = $this->save_with('learning_plan', ['operator' => learning_plan::OPERATOR_HAS,
+            'templateids' => [(int) $template->get('id')], 'includeunlinked' => 0, 'statuses' => []]);
+        $this->assertFalse($this->rule->is_broken(true));
+
+        $template->set('visible', 0);
+        $template->update();
+
+        $this->assertTrue($this->rule->is_broken(true));
     }
 }

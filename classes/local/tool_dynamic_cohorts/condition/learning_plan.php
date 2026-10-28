@@ -87,8 +87,18 @@ class learning_plan extends condition_base {
     protected function get_template_options(): array {
         global $DB;
 
+        $where = '';
+        $params = [];
+        if ($this->scope !== null) {
+            [$where, $params] = self::scoped_contexts_sql('t.contextid', 't.visible', $this->scope);
+            $where = "WHERE {$where}";
+        }
+
         $options = [];
-        $records = $DB->get_records('competency_template', null, 'shortname, id', 'id, shortname, contextid');
+        $records = $DB->get_records_sql(
+            "SELECT t.id, t.shortname, t.contextid FROM {competency_template} t {$where} ORDER BY t.shortname, t.id",
+            $params
+        );
         foreach ($records as $record) {
             $options[$record->id] = self::format_template_name($record);
         }
@@ -162,6 +172,48 @@ class learning_plan extends condition_base {
         }
 
         return $errors;
+    }
+
+    /**
+     * Available to category-level users, held to the templates usable from their category (owner decision Q2).
+     *
+     * @return bool
+     */
+    public function supports_category_scope(): bool {
+        return true;
+    }
+
+    /**
+     * Rechecked while the rule is processed: a template's category can move and its visibility change.
+     *
+     * @return bool
+     */
+    protected function rechecks_scope_when_processed(): bool {
+        return true;
+    }
+
+    /**
+     * Errors for templates not usable from the scope: the scope's own and its subcategories', or a
+     * visible one of a parent context ({@see condition_base::scoped_contexts_sql()}).
+     *
+     * @return array Form errors keyed by element name.
+     */
+    public function validate_scope(): array {
+        global $DB;
+
+        $ids = $this->get_templateids();
+        if ($this->scope === null || empty($ids)) {
+            return [];
+        }
+
+        [$insql, $params] = $DB->get_in_or_equal($ids, SQL_PARAMS_NAMED, 'scopetpl');
+        [$usablesql, $usableparams] = self::scoped_contexts_sql('t.contextid', 't.visible', $this->scope);
+        $usable = $DB->count_records_sql(
+            "SELECT COUNT(1) FROM {competency_template} t WHERE t.id {$insql} AND {$usablesql}",
+            $params + $usableparams
+        );
+
+        return $usable == count($ids) ? [] : ['templateids' => get_string('outofscope', 'tool_dynamic_cohorts')];
     }
 
     /**

@@ -21,8 +21,7 @@ Entries below cover the fork only; upstream history lives in that repository.
   processing listens to `competency_evidence_created` and skips evidence that cannot change a
   proficiency (a log action) or that concerns another competency. A deleted competency breaks the
   condition, and its description says which ids are gone and how to resume the rule. Competencies
-  are picked through a search (`tool_dynamic_cohorts_search_competencies`). Not yet available to
-  category-level users. Backport of stage S2 of the competency conditions plan
+  are picked through a search (`tool_dynamic_cohorts_search_competencies`). Backport of stage S2 of the competency conditions plan
   (`docs/competency-conditions/PLAN.md` on `main`).
 - Condition "Learning plan": users who have, or have not, a learning plan created from given
   templates (up to 50), in given statuses, optionally counting plans since unlinked from the
@@ -30,11 +29,22 @@ Entries below cover the fork only; upstream history lives in that repository.
   breaks the condition, since core never removes a plan when a member leaves: the rule would
   never take a member out again. Its description says so and how to resume. Processed in real
   time on the plan events that create, delete, unlink or change the status of a plan of a
-  configured template; core names the plan owner as their related user. Not yet available to
-  category-level users. Backport of stage S3 of the competency conditions plan
+  configured template; core names the plan owner as their related user. Backport of stage S3 of the competency conditions plan
   (`docs/competency-conditions/PLAN.md` on `main`).
+- Both conditions are available to category-level users, held to their category (owner decisions
+  Q1 and Q2 of the plan). Competencies come from the category's frameworks and the visible
+  frameworks above it, and the search offers only those; the site-wide rating is offered only for
+  the category's own frameworks, since it is earned anywhere on the site; the one-course source
+  takes a course of the category; and "any course" counts only the ratings given in the
+  category's courses. Templates come from the category's and the visible ones above it. Both are
+  checked again while the rule is processed: a framework or template hidden, or its category
+  moved, breaks the rule. A site that saved the "Conditions available in course categories"
+  setting before has to tick the two new conditions there. A competency condition stored with a
+  rating source the form never offers is broken rather than read unrestricted. Backport of stage
+  S4 of the competency conditions plan (`docs/competency-conditions/PLAN.md` on `main`).
 - `$plugin->version` 2026042005: the release adds a web service, an AMD module and language
-  strings; 2026042006 adds the learning plan condition's strings.
+  strings; 2026042006 adds the learning plan condition's strings; 2026042007 the strings for the
+  category scope.
 
 ### Changed
 
