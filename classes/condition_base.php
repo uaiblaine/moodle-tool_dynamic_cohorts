@@ -477,8 +477,8 @@ abstract class condition_base {
      *
      * Asked of each configured condition of a real-time rule: the observer processes the rule for
      * the event's user when any of its conditions subscribed to the event says yes. Runs on the hot
-     * path of every event the condition subscribes to, so an override decides from the event and
-     * the config data, without reading the database.
+     * path of every event the condition subscribes to, so an override decides from the event (its
+     * record snapshots included) and the config data, without querying the database.
      *
      * @param \core\event\base $event An event from get_events().
      * @return bool

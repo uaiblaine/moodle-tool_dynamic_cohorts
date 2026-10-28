@@ -86,6 +86,8 @@ class condition_form extends external_api {
 
         $condition = condition_base::get_instance((int)$formdata->id, (object)['classname' => $classname]);
         $condition->set_config_data($condition::retrieve_config_data($formdata));
+        // The description is shown before the save records the scope; it describes what the save will store.
+        $condition->set_scope($customdata['scope']);
 
         return [
             'id' => (int)$formdata->id,
