@@ -48,6 +48,10 @@ Entries below cover the fork only; upstream history lives in that repository.
 
 ### Changed
 
+- The rules report has a Context column naming where each rule was written: the system, or the
+  category its cohort lives in. At the system level it also has a Context filter; not on a
+  category page, where core's filter would list every category on the site that holds a cohort.
+  `$plugin->version` 2026042008 (a new string).
 - Real-time processing evaluates a rule once per event. A rule holding two conditions that
   subscribe to the same event, such as a profile field and interests (both on `user_updated`),
   was evaluated twice for every such event.

@@ -77,6 +77,8 @@ class rules extends system_report {
         $this->add_column_from_entity('rule_entity:name');
         $this->add_column_from_entity('rule_entity:description');
         $this->add_column_from_entity('cohort:name');
+        // Where the rule was written: the system, or the category its cohort lives in.
+        $this->add_column_from_entity('cohort:context');
 
         $this->add_column(new column(
             'matchingusers',
@@ -135,11 +137,20 @@ class rules extends system_report {
 
         $cohortentity->get_column('name')
             ->set_title(new lang_string('cohort', 'tool_dynamic_cohorts'));
+        $cohortentity->get_column('context')
+            ->set_title(new lang_string('rulecontext', 'tool_dynamic_cohorts'));
 
         $this->add_filter_from_entity('rule_entity:name');
         $this->add_filter_from_entity('rule_entity:bulkprocessing');
         $this->add_filter_from_entity('rule_entity:broken');
         $this->add_filter_from_entity('rule_entity:enabled');
+
+        /* System level only: core's filter offers every context on the site that holds a cohort,
+           which would name categories outside a category manager's subtree. */
+        if ($context->contextlevel == CONTEXT_SYSTEM) {
+            $this->add_filter_from_entity('cohort:context');
+            $this->get_filter('cohort:context')->set_header(new lang_string('rulecontext', 'tool_dynamic_cohorts'));
+        }
 
         $this->set_initial_sort_column('rule_entity:name', SORT_ASC);
     }
