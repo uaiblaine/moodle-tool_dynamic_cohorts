@@ -24,8 +24,17 @@ Entries below cover the fork only; upstream history lives in that repository.
   are picked through a search (`tool_dynamic_cohorts_search_competencies`). Not yet available to
   category-level users. Backport of stage S2 of the competency conditions plan
   (`docs/competency-conditions/PLAN.md` on `main`).
+- Condition "Learning plan": users who have, or have not, a learning plan created from given
+  templates (up to 50), in given statuses, optionally counting plans since unlinked from the
+  template. Only template plans count. A template whose cohort sync fills the rule's own cohort
+  breaks the condition, since core never removes a plan when a member leaves: the rule would
+  never take a member out again. Its description says so and how to resume. Processed in real
+  time on the plan events that create, delete, unlink or change the status of a plan of a
+  configured template; core names the plan owner as their related user. Not yet available to
+  category-level users. Backport of stage S3 of the competency conditions plan
+  (`docs/competency-conditions/PLAN.md` on `main`).
 - `$plugin->version` 2025100605: the release adds a web service, an AMD module and language
-  strings.
+  strings; 2025100606 adds the learning plan condition's strings.
 
 ### Changed
 
