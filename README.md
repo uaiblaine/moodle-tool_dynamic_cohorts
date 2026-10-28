@@ -86,12 +86,12 @@ Conditions are simple predicates which assert something about a user in the syst
   competencies). It reads the site-wide rating, the rating given in one course, or the rating given
   in any course, straight from core's competency tables, so a rating keeps counting after its
   competency is unlinked from the course or competencies are disabled. It is processed in real
-  time when a rating of one of its competencies changes. Not yet available in course categories.
+  time when a rating of one of its competencies changes.
 * Learning plan (if a user has, or has not, a learning plan created from given templates, in given
   statuses, optionally counting plans since unlinked from the template). Individual plans, which
   have no template, never count. A template whose cohort sync fills the rule's own cohort stops
   the rule, because core never removes a plan when a member leaves. Processed in real time when a
-  plan is created, deleted, changes status or is unlinked. Not yet available in course categories.
+  plan is created, deleted, changes status or is unlinked.
 * Course completed (if a user has completed a course).
 * Course not completed (if a user has not completed a course).
 * User created time (time since a user was created).
@@ -170,12 +170,17 @@ as usual (_the category > More > Cohorts_, which needs `moodle/cohort:manage`).
 - Pick only cohorts of the category (or its subcategories) that they may assign to.
 - Use only the conditions enabled in the setting _Conditions available in course categories_
   (_Site administration > Users > Accounts > Dynamic cohorts > Settings_). Every built-in condition
-  is enabled by default, except Competency proficiency and Learning plan for now; conditions from other plugins stay
-  off until they support categories.
+  is enabled by default; conditions from other plugins stay off until they support categories. A
+  site that saved this setting before the competency and learning plan conditions existed has to
+  tick them there.
 - Refer only to what lies in the category. Course conditions take its courses. The role condition
   takes the category or one of its courses, never the system level. Cohort conditions take the
   category's cohorts and the visible cohorts above it. Profile conditions offer identity and
-  hidden fields only where core would show them to that user. A rule cannot be moved to another
+  hidden fields only where core would show them to that user. Competency conditions take
+  competencies of the category's frameworks and of the visible frameworks above it; the site-wide
+  rating only for the category's own frameworks, and "any course" counts only the category's
+  courses. Learning plan conditions take the category's templates and the visible templates above
+  it. A rule cannot be moved to another
   cohort while one of its conditions reaches outside that cohort's category.
 - Not save a rule that holds a condition reaching outside the category (for example, one an
   administrator wrote). They have to remove that condition first. Enabling, disabling and
