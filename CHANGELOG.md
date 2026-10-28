@@ -9,6 +9,18 @@ Entries below cover the fork only; upstream history lives in that repository.
 
 ## [Unreleased]
 
+### Changed
+
+- Real-time processing evaluates a rule once per event. A rule holding two conditions that
+  subscribe to the same event, such as a profile field and interests (both on `user_updated`),
+  was evaluated twice for every such event.
+- For condition authors: `condition_base::is_relevant_event()` lets a configured condition tell
+  the observer that an event cannot change its result, so its rules are not evaluated for it. It
+  defaults to true, which keeps every existing condition as it was. `scoped_contexts_sql()`
+  generalises `scoped_cohorts_sql()` to any table with a context and a visibility column, for the
+  competency frameworks and plan templates of the coming conditions. Stage S1 of
+  `docs/competency-conditions/PLAN.md`.
+
 ### Fixed
 
 - Real-time processing no longer rewrites a whole cohort inside the request of an event that names
