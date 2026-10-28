@@ -98,7 +98,7 @@ Conditions are simple predicates which assert something about a user in the syst
 * Course completed (if a user has completed a course).
 * Course not completed (if a user has not completed a course).
 * User created time (time since a user was created).
-* User custom profile fields (text, menu, date and autocomplete types are supported).
+* User custom profile fields (text, menu, checkbox, date and time, and autocomplete types are supported).
 * User enrolment (if a user is enrolled into a course).
 * User last login (time since a user last logged in).
 * User role (if a user has a role in a given context)
@@ -119,7 +119,7 @@ For users to be added to the cohort specified by a rule, they must match all of 
 
 Rules can be processed by two mechanisms:
 
-1. By cron: When a rule is created or updated, there may be many users that need to be added or removed from a cohort. This process is handled by cron, and depending on how many users are matched by a rule, this process can take some time. For rules matching large sets of users, some [configuration options](#rule-processing-options) are provided which may be useful to server administrators.
+1. By cron: a scheduled task runs every minute by default. When a rule is created or updated, there may be many users that need to be added or removed from a cohort. This process is handled by cron, and depending on how many users are matched by a rule, this process can take some time. For rules matching large sets of users, some [configuration options](#rule-processing-options) are provided which may be useful to server administrators.
 2. By event: rules may also listen to certain events. When one of these events triggers, appropriate rules will be checked and the user will be added to the appropriate cohort immediately. For example, the User standard profile field rule listens to the "User created" and "User updated" events.
 
 ### Disabling realtime processing (processing on event)
@@ -127,6 +127,16 @@ Rules can be processed by two mechanisms:
 Each rule can be configured to be processed realtime (if any of the related conditions support processing on event).
 
 There is also a global admin setting that allows administrator to enable or disable realtime rule processing globally overriding per rule configuration. 
+
+### Broken rules
+
+A condition breaks when what it names is gone: a deleted course, role, cohort, profile field,
+competency or learning plan template, or, for a condition written in a course category, something
+since moved or hidden outside that category. Some conditions also refuse a setup that cannot work,
+such as a cohort membership condition on the rule's own cohort, or a learning plan template whose
+cohort sync fills the rule's own cohort. The rule is then marked broken and disabled, and it keeps
+its current members: cron and real-time processing skip it rather than match everyone or no one.
+The rule's conditions say what is wrong; fix or remove the condition, save and enable the rule.
 
 # Configuration
 
@@ -138,7 +148,7 @@ There is also a global admin setting that allows administrator to enable or disa
    the cohorts of one course category, to that category's rules page: see
    [Managing rules in a course category](#managing-rules-in-a-course-category))
 2. Press the "Add a new rule" button
-3. From this form you can specify the cohort users will be added to, and add any conditions available in your system. As metioned above, a user must match **all** conditions to be added to the cohort
+3. From this form you can specify the cohort users will be added to, and add any conditions available in your system. As mentioned above, a user must match **all** conditions (operator AND) or **any** of them (operator OR) to be added to the cohort
 4. Press the "Save changes" button
 
 You will be directed to the manage rules page where you can review your rule before enabling it by clicking the eye.
@@ -209,6 +219,14 @@ To mitigate this, an option is provided to process "in bulk" instead of adding t
 2. Check the "Bulk processing" checkbox
 3. Save the rule and review it before enabling
 
+### Releasing members
+
+When a rule is deleted, or pointed at another cohort, the plugin stops managing the cohort it
+leaves, and by default leaves its members as they are. The site setting _Release members_
+(`tool_dynamic_cohorts/releasemembers`, off by default) empties that cohort instead, directly in
+the database: no `\core\event\cohort_member_removed` event is triggered, so cohort enrolment sync
+and other observers do not react.
+
 ### Bulk processing and events
 By default, bulk processing does not trigger the `\core\event\cohort_member_added` and
 `\core\event\cohort_member_removed` events, because an event per membership change adds load
@@ -225,7 +243,7 @@ performance gain.
 
 ### Quick start
 
-Any plugin can easily implement a condition by adding classes in the `\local\tool_dynamic_cohorts\condition` namespace. Each condition must extend the [base_condition class](classes/condition_base.php). As an example, the itself provides some conditions; the directory structure is as follows:
+Any plugin can implement a condition by adding classes in its `\local\tool_dynamic_cohorts\condition` namespace. Each condition must extend the [condition_base class](classes/condition_base.php). This plugin's own conditions follow that layout; some of them:
 
 ```
 tool_dynamic_cohorts
@@ -239,11 +257,27 @@ tool_dynamic_cohorts
                └── user_profile.php
 ```
 
-See [cohort_membership.php](classes/local/tool_dynamic_cohorts/condition/cohort_membership.php) for an example implementation of a single rule. Any plugin wishing to add a rule must simply add similar class inside its own directory. tool_dynamic_cohorts will automatically discover new rules.  
+See [cohort_membership.php](classes/local/tool_dynamic_cohorts/condition/cohort_membership.php) for an example implementation of a single condition. Any plugin wishing to add a condition adds a similar class inside its own directory, and tool_dynamic_cohorts discovers it automatically.
+
+A condition returns SQL that is combined with the rule's other conditions into one statement, so its JOIN must not filter (use a LEFT JOIN or filter in WHERE), and its `is_broken()` must return true when what it names is gone.
 
 ### Triggering on event
 
 Any condition can specify a list of events to listen to by overriding the `get_events` method. Simply return a list of events. See [user_custom_profile.php](classes/local/tool_dynamic_cohorts/condition/user_custom_profile.php) for an example.
+
+A real-time rule is processed once per event for the user the event is about (its related user,
+else the user who acted), when one of its conditions finds the event relevant. A condition that
+subscribes to a frequent event can override `is_relevant_event()` to say, from the event and its
+config data alone, that the event cannot change its result; see
+[competency_proficiency.php](classes/local/tool_dynamic_cohorts/condition/competency_proficiency.php).
+
+### Course categories
+
+A condition from another plugin is not offered to category-level users until it returns true from
+`supports_category_scope()`, holds its referents to the category in `validate_scope()` (and, if
+they can move later, `rechecks_scope_when_processed()`), and an administrator enables it in
+_Conditions available in course categories_. See
+[course_completed.php](classes/local/tool_dynamic_cohorts/condition/course_completed.php).
 
 ## Task processing
 Task processing is orchestrated by a simple mechanism:
