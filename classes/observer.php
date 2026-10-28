@@ -34,10 +34,18 @@ class observer {
     public static function process_event(base $event): void {
         // Check if realtime processing enabled globally.
         if (get_config('tool_dynamic_cohorts', 'realtime')) {
+            /* An event that names no user (fired by a script with no user set) is left to the
+               scheduled run: process_rule() reads a user id of 0 as "no user" and would match and
+               rewrite the whole cohort inside the request that fired the event. */
+            $userid = self::get_userid_from_event($event);
+            if ($userid < 1) {
+                return;
+            }
+
             foreach (condition_manager::get_conditions_with_event($event) as $condition) {
                 foreach (rule_manager::get_rules_with_condition($condition) as $rule) {
                     if ($rule->is_realtime()) {
-                        rule_manager::process_rule($rule, self::get_userid_from_event($event));
+                        rule_manager::process_rule($rule, $userid);
                     }
                 }
             }
