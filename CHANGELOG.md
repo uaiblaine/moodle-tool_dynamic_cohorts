@@ -7,6 +7,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This is a fork of [catalyst/moodle-tool_dynamic_cohorts](https://github.com/catalyst/moodle-tool_dynamic_cohorts).
 Entries below cover the fork only; upstream history lives in that repository.
 
+## [Unreleased]
+
+### Fixed
+
+- Real-time processing no longer rewrites a whole cohort inside the request of an event that names
+  no user. Such an event (one fired by a script with no user set, with no related user) gave the
+  observer a user id of 0, which `rule_manager::process_rule()` reads as "every user": the rule
+  was matched and applied site-wide in the triggering request. It is now left to the scheduled
+  run. Backport of stage S0 of the competency conditions plan (`docs/competency-conditions/PLAN.md`
+  on `main`).
+
 ## [v5.2-r3] - 2026-10-22
 
 Third release of this fork for Moodle 5.2 ($plugin->version = 2026042004). A category-level user's
