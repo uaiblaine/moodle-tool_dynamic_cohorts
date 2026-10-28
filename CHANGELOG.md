@@ -7,6 +7,89 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This is a fork of [catalyst/moodle-tool_dynamic_cohorts](https://github.com/catalyst/moodle-tool_dynamic_cohorts).
 Entries below cover the fork only; upstream history lives in that repository.
 
+## [v5.3-r4] - 2026-10-28
+
+Fourth release of this fork for Moodle 5.3 ($plugin->version = 2026100509). Two new conditions,
+"Competency proficiency" and "Learning plan", available site-wide and in course categories; the
+rules report says where each rule was written; real-time processing evaluates a rule once per event
+and skips events that cannot change it. Plan and audit: `docs/competency-conditions/`.
+
+### Added
+
+- Condition "Competency proficiency": users who are, or are not, proficient in at least one or all
+  of up to 50 competencies, by their site-wide rating, their rating in one course, or their rating
+  in any course. It reads core's rating tables directly, never the competency API, whose getters
+  check the current user's capabilities and throw while competencies are disabled; a rating keeps
+  counting after its competency is unlinked from a course, and the condition is not offered while
+  competencies are disabled. "All" is a correlated count rather than a grouped derived table, which
+  MariaDB materialises whole for every one-user evaluation when negated or under OR. Real-time
+  processing listens to `competency_evidence_created` and skips evidence that cannot change a
+  proficiency (a log action) or that concerns another competency. A deleted competency breaks the
+  condition, and its description says which ids are gone and how to resume the rule. Competencies
+  are picked through a search (`tool_dynamic_cohorts_search_competencies`). Stage S2 of
+  `docs/competency-conditions/PLAN.md`.
+- Condition "Learning plan": users who have, or have not, a learning plan created from given
+  templates (up to 50), in given statuses, optionally counting plans since unlinked from the
+  template. Only template plans count. A template whose cohort sync fills the rule's own cohort
+  breaks the condition, since core never removes a plan when a member leaves: the rule would
+  never take a member out again. Its description says so and how to resume. Processed in real
+  time on the plan events that create, delete, unlink or change the status of a plan of a
+  configured template; core names the plan owner as their related user. Stage S3 of
+  `docs/competency-conditions/PLAN.md`.
+- Both conditions are available to category-level users, held to their category (owner decisions
+  Q1 and Q2 of the plan). Competencies come from the category's frameworks and the visible
+  frameworks above it, and the search offers only those; the site-wide rating is offered only for
+  the category's own frameworks, since it is earned anywhere on the site; the one-course source
+  takes a course of the category; and "any course" counts only the ratings given in the
+  category's courses. Templates come from the category's and the visible ones above it. Both are
+  checked again while the rule is processed: a framework or template hidden, or its category
+  moved, breaks the rule. A site that saved the "Conditions available in course categories"
+  setting before has to tick the two new conditions there. A competency condition stored with a
+  rating source the form never offers is broken rather than read unrestricted. Stage S4.
+- `$plugin->version` 2026100505: the release adds a web service, an AMD module and language
+  strings; 2026100506 adds the learning plan condition's strings; 2026100507 the strings for the
+  category scope.
+
+### Changed
+
+- The rules report has a Context column naming where each rule was written: the system, or the
+  category its cohort lives in. At the system level it also has a Context filter; not on a
+  category page, where core's filter would list every category on the site that holds a cohort.
+  `$plugin->version` 2026100508 (a new string).
+- Real-time processing evaluates a rule once per event. A rule holding two conditions that
+  subscribe to the same event, such as a profile field and interests (both on `user_updated`),
+  was evaluated twice for every such event.
+- For condition authors: `condition_base::is_relevant_event()` lets a configured condition tell
+  the observer that an event cannot change its result, so its rules are not evaluated for it. It
+  defaults to true, which keeps every existing condition as it was. `scoped_contexts_sql()`
+  generalises `scoped_cohorts_sql()` to any table with a context and a visibility column, for the
+  competency frameworks and plan templates of the competency and learning plan conditions. Stage S1 of
+  `docs/competency-conditions/PLAN.md`.
+
+### Fixed
+
+- Real-time processing no longer rewrites a whole cohort inside the request of an event that names
+  no user. Such an event (one fired by a script with no user set, with no related user) gave the
+  observer a user id of 0, which `rule_manager::process_rule()` reads as "every user": the rule
+  was matched and applied site-wide in the triggering request. It is now left to the scheduled
+  run. Stage S0 of `docs/competency-conditions/PLAN.md`.
+- Performance, measured: a competency or learning plan condition answers "is it broken" once per
+  rule and config data instead of three times per processed event; the rules report's Context
+  filter lists only the contexts whose cohorts have a rule, read in one query instead of one per
+  category holding a cohort. Numbers in the audit report.
+- A category-level user could read the names and ID numbers of competencies outside their
+  category through the condition form, whose fragment labels every selected id it is given. Ids
+  outside the category now get a neutral label, the same whether the competency exists or not.
+- The condition modal described a category-level user's "any course" source as every course; it
+  now says the category's courses, as the saved condition does.
+- The "Rating" help said a course rating always reaches the site-wide rating; core pushes it only
+  when the course pushes ratings to learning plans (the default).
+- A one-course competency condition no longer reprocesses its rules for evidence given in other
+  courses.
+- Stale comments and documentation corrected (the plan, this plugin's CLAUDE.md, the README); the
+  report of the audit is `docs/competency-conditions/AUDIT-2026-10-28.md`. `$plugin->version`
+  2026100509 (strings).
+
 ## [v5.3-r3] - 2026-10-22
 
 Third release of this fork for Moodle 5.3 ($plugin->version = 2026100504). A category-level user's
