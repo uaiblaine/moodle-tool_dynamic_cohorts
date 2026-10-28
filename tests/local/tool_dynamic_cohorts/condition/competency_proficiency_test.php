@@ -408,6 +408,39 @@ final class competency_proficiency_test extends \advanced_testcase {
     }
 
     /**
+     * Relevance of the one-course source: only evidence given in that course counts.
+     */
+    public function test_is_relevant_event_for_one_course(): void {
+        $this->create_users(['user']);
+        $userid = (int) $this->users['user']->id;
+        $coursea = $this->getDataGenerator()->create_course();
+        $courseb = $this->getDataGenerator()->create_course();
+        $condition = $this->condition($this->config(['c1'], [
+            'source' => competency_proficiency::SOURCE_COURSE,
+            'courseid' => (int) $coursea->id,
+        ]));
+
+        $sink = $this->redirectEvents();
+        foreach ([$courseb, $coursea] as $course) {
+            \core_competency\api::add_evidence(
+                $userid,
+                $this->competencies['c1'],
+                \core\context\course::instance($course->id),
+                evidence::ACTION_COMPLETE,
+                'evidence_manualoverride',
+                'core_competency'
+            );
+        }
+        $evidence = fn($event) => $event instanceof \core\event\competency_evidence_created;
+        $events = array_values(array_filter($sink->get_events(), $evidence));
+        $sink->close();
+
+        $this->assertCount(2, $events);
+        $this->assertFalse($condition->is_relevant_event($events[0]), 'Evidence given in another course.');
+        $this->assertTrue($condition->is_relevant_event($events[1]));
+    }
+
+    /**
      * A rating given through core's API adds the user to a real-time rule's cohort at once.
      */
     public function test_rating_processes_the_rule_in_real_time(): void {

@@ -143,8 +143,9 @@ final class observer_hooks_test extends \advanced_testcase {
     /**
      * A plan event raised by someone else processes the plan's owner.
      *
-     * Core's plan events pass no related user; core fills it in from their user context, which is
-     * what a learning plan condition relies on to process the right user in real time.
+     * Core's plan_created, plan_deleted, plan_updated and plan_viewed pass no related user; core
+     * fills it in from their user context, which a learning plan condition relies on to process the
+     * right user in real time.
      */
     public function test_plan_event_processes_the_owner_not_the_actor(): void {
         global $USER;
