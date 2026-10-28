@@ -154,6 +154,98 @@ class competency_proficiency extends condition_base {
     }
 
     /**
+     * Available to category-level users, held to their category (owner decision Q1).
+     *
+     * @return bool
+     */
+    public function supports_category_scope(): bool {
+        return true;
+    }
+
+    /**
+     * Rechecked while the rule is processed: a framework's category can move, its visibility change,
+     * and the course of the one-course source move.
+     *
+     * @return bool
+     */
+    protected function rechecks_scope_when_processed(): bool {
+        return true;
+    }
+
+    /**
+     * Errors for referents outside the scope.
+     *
+     * Every competency must come from a framework usable from the scope: the scope's own and its
+     * subcategories', or a visible one of a parent context ({@see condition_base::scoped_contexts_sql()}).
+     * The site-wide rating is earned anywhere on the site, so it is offered only for the scope's own
+     * frameworks; a framework of a parent context offers the ratings given in the scope's courses.
+     * The one-course source takes a course of the scope; the any-course source is held to the scope's
+     * courses when the rule is processed ({@see self::get_sql()}).
+     *
+     * @return array Form errors keyed by element name.
+     */
+    public function validate_scope(): array {
+        global $DB;
+
+        $ids = $this->get_competencyids();
+        if ($this->scope === null || empty($ids)) {
+            return [];
+        }
+
+        [$insql, $params] = $DB->get_in_or_equal($ids, SQL_PARAMS_NAMED, 'scopecomp');
+        [$usablesql, $usableparams] = self::scoped_contexts_sql('f.contextid', 'f.visible', $this->scope);
+        $usable = $DB->count_records_sql(
+            "SELECT COUNT(1)
+               FROM {competency} c
+               JOIN {competency_framework} f ON f.id = c.competencyframeworkid
+              WHERE c.id {$insql} AND {$usablesql}",
+            $params + $usableparams
+        );
+        if ($usable != count($ids)) {
+            return ['competencyids' => get_string('outofscope', 'tool_dynamic_cohorts')];
+        }
+
+        $source = $this->get_int('source', self::SOURCE_GLOBAL);
+        if ($source === self::SOURCE_GLOBAL) {
+            [$ownsql, $ownparams] = self::scope_subtree_sql('f.contextid', $this->scope);
+            $owned = $DB->count_records_sql(
+                "SELECT COUNT(1)
+                   FROM {competency} c
+                   JOIN {competency_framework} f ON f.id = c.competencyframeworkid
+                  WHERE c.id {$insql} AND {$ownsql}",
+                $params + $ownparams
+            );
+            if ($owned != count($ids)) {
+                return ['source' => get_string('competencysource_outofscope', 'tool_dynamic_cohorts')];
+            }
+        } else if ($source === self::SOURCE_COURSE && !$this->course_in_scope($this->get_int('courseid', 0))) {
+            return ['courseid' => get_string('outofscope', 'tool_dynamic_cohorts')];
+        }
+
+        return [];
+    }
+
+    /**
+     * SQL restricting a context id column to the scope and its subcontexts.
+     *
+     * @param string $contextcolumn Qualified context id column.
+     * @param \core\context $scope Course category context.
+     * @return array [string $sql, array $params]
+     */
+    private static function scope_subtree_sql(string $contextcolumn, \core\context $scope): array {
+        global $DB;
+
+        $ctxalias = condition_sql::generate_table_alias();
+        $idparam = condition_sql::generate_param_alias();
+        $pathparam = condition_sql::generate_param_alias();
+        $sql = "{$contextcolumn} IN (SELECT {$ctxalias}.id
+                                       FROM {context} {$ctxalias}
+                                      WHERE {$ctxalias}.id = :{$idparam}
+                                         OR " . $DB->sql_like("{$ctxalias}.path", ":{$pathparam}") . ")";
+        return [$sql, [$idparam => $scope->id, $pathparam => $DB->sql_like_escape($scope->path) . '/%']];
+    }
+
+    /**
      * Gets required config data from submitted condition form data.
      *
      * Ids are cast and deduplicated, and a course is kept only for the one-course source: the
@@ -290,6 +382,10 @@ class competency_proficiency extends condition_base {
             $coursename = (string) $DB->get_field('course', 'fullname', ['id' => $this->get_int('courseid', 0)]);
             $coursename = format_string($coursename, true, ['context' => \core\context\system::instance()]);
             $sourcetext = get_string('competencysource_course_description', 'tool_dynamic_cohorts', $coursename);
+        } else if ($source === self::SOURCE_ANY_COURSE && ($scope = $this->get_recorded_scope())) {
+            $categoryname = (string) $DB->get_field('course_categories', 'name', ['id' => $scope->instanceid]);
+            $categoryname = format_string($categoryname, true, ['context' => $scope]);
+            $sourcetext = get_string('competencysource_anycourse_category_description', 'tool_dynamic_cohorts', $categoryname);
         } else if ($source === self::SOURCE_ANY_COURSE) {
             $sourcetext = get_string('competencysource_anycourse_description', 'tool_dynamic_cohorts');
         } else {
@@ -350,6 +446,12 @@ class competency_proficiency extends condition_base {
             return true;
         }
 
+        // An unknown source would read the course ratings with no course restriction at all.
+        $sources = [self::SOURCE_GLOBAL, self::SOURCE_COURSE, self::SOURCE_ANY_COURSE];
+        if (!in_array($this->get_int('source', self::SOURCE_GLOBAL), $sources, true)) {
+            return true;
+        }
+
         return $this->is_course_missing();
     }
 
@@ -395,6 +497,11 @@ class competency_proficiency extends condition_base {
             $courseparam = condition_sql::generate_param_alias();
             $filter .= " AND {$alias}.courseid = :{$courseparam}";
             $params[$courseparam] = $this->get_int('courseid', 0);
+        } else if ($source === self::SOURCE_ANY_COURSE && ($scope = $this->get_recorded_scope())) {
+            // Written in a category: only the ratings given in its courses count.
+            [$coursesql, $courseparams] = self::scoped_courses_sql("{$alias}.courseid", $scope);
+            $filter .= " AND {$coursesql}";
+            $params += $courseparams;
         }
 
         $all = $this->get_int('match', self::MATCH_ANY) === self::MATCH_ALL;
@@ -413,6 +520,26 @@ class competency_proficiency extends condition_base {
         }
 
         return new condition_sql('', $where, $params);
+    }
+
+    /**
+     * SQL restricting a course id column to the courses under a category context.
+     *
+     * @param string $coursecolumn Qualified course id column.
+     * @param \core\context $scope Course category context.
+     * @return array [string $sql, array $params]
+     */
+    private static function scoped_courses_sql(string $coursecolumn, \core\context $scope): array {
+        global $DB;
+
+        $ctxalias = condition_sql::generate_table_alias();
+        $levelparam = condition_sql::generate_param_alias();
+        $pathparam = condition_sql::generate_param_alias();
+        $sql = "{$coursecolumn} IN (SELECT {$ctxalias}.instanceid
+                                      FROM {context} {$ctxalias}
+                                     WHERE {$ctxalias}.contextlevel = :{$levelparam}
+                                       AND " . $DB->sql_like("{$ctxalias}.path", ":{$pathparam}") . ")";
+        return [$sql, [$levelparam => CONTEXT_COURSE, $pathparam => $DB->sql_like_escape($scope->path) . '/%']];
     }
 
     /**
