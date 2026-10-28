@@ -63,6 +63,9 @@ class competency_proficiency extends condition_base {
     /** @var string|null The config data $missing was read for. */
     private $missingfor = null;
 
+    /** @var array|null [key, result] of the last is_broken(), for the rule id and config data in the key. */
+    private $brokenmemo = null;
+
     /**
      * Condition name.
      *
@@ -463,9 +466,25 @@ class competency_proficiency extends condition_base {
      * An unconfigured instance is broken while competencies are disabled, so the condition is not
      * offered then; a configured one keeps evaluating the stored ratings.
      *
+     * Answered once per rule and config data: processing asks it of the same instance in
+     * build_sql_data() and again in get_sql(), and the answer reads the database.
+     *
      * @return bool
      */
     public function is_broken(): bool {
+        $key = $this->get_record()->get('ruleid') . '|' . $this->get_record()->get('configdata');
+        if ($this->brokenmemo === null || $this->brokenmemo[0] !== $key) {
+            $this->brokenmemo = [$key, $this->check_broken()];
+        }
+        return $this->brokenmemo[1];
+    }
+
+    /**
+     * Whether the condition is broken, read afresh: {@see self::is_broken()}.
+     *
+     * @return bool
+     */
+    protected function check_broken(): bool {
         if (!$this->get_config_data()) {
             return !get_config('core_competency', 'enabled');
         }

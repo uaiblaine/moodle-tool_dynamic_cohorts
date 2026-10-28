@@ -216,6 +216,25 @@ final class learning_plan_test extends \advanced_testcase {
     }
 
     /**
+     * is_broken() is answered once per config data: asked again it reads nothing, and new config is read afresh.
+     */
+    public function test_is_broken_is_memoised_per_config(): void {
+        global $DB;
+
+        // Written in a category: its templates are checked against it again on every check.
+        $category = \core\context\coursecat::instance($this->getDataGenerator()->create_category()->id);
+        $condition = $this->condition($this->config(['t1'], [condition_base::SCOPE_KEY => (int) $category->id]));
+        $this->assertFalse($condition->is_broken());
+        $before = $DB->perf_get_reads();
+        $this->assertFalse($condition->is_broken());
+        $this->assertSame(0, $DB->perf_get_reads() - $before);
+
+        // The control: the same instance with new config is answered afresh.
+        $condition->set_config_data(['templateids' => [999999]] + $this->config([]));
+        $this->assertTrue($condition->is_broken());
+    }
+
+    /**
      * The unconfigured condition is offered only while competencies are enabled.
      */
     public function test_not_offered_while_competencies_disabled(): void {
