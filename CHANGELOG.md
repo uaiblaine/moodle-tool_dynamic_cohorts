@@ -48,6 +48,11 @@ Entries below cover the fork only; upstream history lives in that repository.
 
 ### Fixed (audit of 2026-10-28)
 
+- Performance, measured: a competency or learning plan condition answers "is it broken" once per
+  rule and config data instead of three times per processed event; the rules report's Context
+  filter lists only the contexts whose cohorts have a rule, read in one query instead of one per
+  category holding a cohort. Numbers in the audit report (`docs/competency-conditions/` on `main`).
+
 - A category-level user could read the names and ID numbers of competencies outside their
   category through the condition form, whose fragment labels every selected id it is given. Ids
   outside the category now get a neutral label, the same whether the competency exists or not.
