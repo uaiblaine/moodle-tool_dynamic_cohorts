@@ -213,6 +213,7 @@ $string['rule_entity.id'] = 'ID';
 $string['rule_entity.name'] = 'Nome';
 $string['rule_entity.realtime'] = 'Processamento em tempo real';
 $string['rule_entity.status'] = 'Situação';
+$string['rulecontext'] = 'Contexto';
 $string['ruledisabledpleasereview'] = 'Regras recém-criadas ou atualizadas ficam desabilitadas por padrão. Revise a regra abaixo e habilite-a quando estiver pronta.';
 $string['settings:bulkprocessingevents'] = 'Disparar eventos no processamento em lote';
 $string['settings:bulkprocessingevents_desc'] = 'Quando habilitado, os eventos \\core\\event\\cohort_member_added e \\core\\event\\cohort_member_removed são disparados para cada usuário que o processamento em lote adiciona ao coorte ou remove dele. Isso reduz o ganho de desempenho do processamento em lote (um evento é criado e disparado por usuário), mas mantém funcionando os plugins e observadores que dependem desses eventos, como a sincronização da inscrição por coorte.';
