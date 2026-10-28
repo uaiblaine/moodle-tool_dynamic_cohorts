@@ -17,6 +17,7 @@
 namespace tool_dynamic_cohorts;
 
 use advanced_testcase;
+use tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition\user_last_login;
 use tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition\user_profile;
 use PHPUnit\Framework\Attributes\CoversClass;
 
@@ -198,5 +199,52 @@ final class observer_test extends advanced_testcase {
         $this->getDataGenerator()->create_user(['username' => 'user2']);
 
         $this->assertEquals(0, $DB->count_records('cohort_members', ['cohortid' => $this->cohort->id]));
+    }
+
+    /**
+     * An event that names no user is not processed for everyone; one that names a user is processed for that user.
+     */
+    public function test_event_without_user_does_not_process_the_whole_rule(): void {
+        global $DB;
+
+        set_config('realtime', 1, 'tool_dynamic_cohorts');
+
+        $user1 = $this->getDataGenerator()->create_user();
+        $this->getDataGenerator()->create_user();
+
+        $rule = new rule(0, (object)['name' => 'Test rule 1', 'enabled' => 1, 'cohortid' => $this->cohort->id, 'realtime' => 1]);
+        $rule->save();
+
+        // Every user created above has never logged in, so the whole rule matches both of them.
+        $condition = condition_base::get_instance(0, (object)[
+            'classname' => 'tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition\user_last_login',
+        ]);
+        $condition->set_config_data(['operator' => user_last_login::OPERATOR_NEVER]);
+
+        $record = $condition->get_record();
+        $record->set('ruleid', $rule->get('id'));
+        $record->set('sortorder', 0);
+        $record->save();
+
+        // Called directly, as core calls it after the commit: no transaction buffering to work around.
+        $nouser = \core\event\user_loggedin::create([
+            'userid' => 0,
+            'objectid' => $user1->id,
+            'other' => ['username' => $user1->username],
+        ]);
+        observer::process_event($nouser);
+        $this->assertEquals(0, $DB->count_records('cohort_members', ['cohortid' => $this->cohort->id]));
+
+        // The control: the same event naming the user processes the rule, for that user only.
+        $named = \core\event\user_loggedin::create([
+            'userid' => $user1->id,
+            'objectid' => $user1->id,
+            'other' => ['username' => $user1->username],
+        ]);
+        observer::process_event($named);
+        $this->assertEquals(
+            [$user1->id],
+            array_values($DB->get_fieldset('cohort_members', 'userid', ['cohortid' => $this->cohort->id]))
+        );
     }
 }
