@@ -169,8 +169,11 @@ amd/src/competency_selector.js     AJAX transport of the competency condition's 
 - **`{{{description}}}` is a raw sink, `{{name}}` is not.** Condition descriptions carry
   deliberate markup (badges, line breaks), so `conditions.mustache` triple-stashes them.
   Every value entering a description therefore needs the ESCAPED spelling: call
-  `format_string()` WITHOUT `'escape' => false`, and never hand `html_writer::tag()` a
-  raw user string — it does not escape its contents.
+  `format_string()` WITHOUT `'escape' => false`, `s()` on anything read from config data,
+  and never hand `html_writer::tag()` a raw user string — it does not escape its contents.
+  `condition_manager::description_html()` (`clean_text()`) runs on every description before
+  the template, the guard that also holds for other plugins' conditions; a new producer of
+  the template's data must call it.
 
 - **Descriptions must not call capability-aware core APIs.** `get_config_description()`
   runs wherever a rule is listed, and `core_course_category::get()` throws for a category

@@ -42,6 +42,11 @@ class user_role extends condition_base {
     public const OPERATOR_DO_NOT_HAVE_ROLE = 1;
 
     /**
+     * Context levels the condition can be configured for; get_sql() has one branch for each.
+     */
+    public const CONTEXT_LEVELS = [CONTEXT_SYSTEM, CONTEXT_COURSECAT, CONTEXT_COURSE];
+
+    /**
      * Condition name.
      *
      * @return string
@@ -134,6 +139,11 @@ class user_role extends condition_base {
      */
     public function config_form_validate(array $data): array {
         $errors = [];
+
+        if (!in_array((int) ($data['contextlevel'] ?? 0), self::CONTEXT_LEVELS, true)) {
+            $errors['contextlevel'] = get_string('required');
+            return $errors;
+        }
 
         if (empty($data['courseid']) && $data['contextlevel'] == CONTEXT_COURSE) {
             $errors['courseid'] = get_string('required');
@@ -389,10 +399,14 @@ class user_role extends condition_base {
                            process_rule() deletes members who no longer match, ticking a
                            box that reads as "more" silently removed them from the cohort. */
                         $contextids = $context->get_parent_context_ids(true);
+                        $pathlike = $DB->sql_like('ctx.path', ':pathpattern');
                         $descendantsql = "SELECT ctx.id
                                             FROM {context} ctx
-                                           WHERE ctx.path LIKE :pathpattern";
-                        $descendants = $DB->get_records_sql($descendantsql, ['pathpattern' => $context->path . '/%']);
+                                           WHERE {$pathlike}";
+                        $descendants = $DB->get_records_sql(
+                            $descendantsql,
+                            ['pathpattern' => $DB->sql_like_escape($context->path) . '/%']
+                        );
                         $contextids = array_merge($contextids, array_keys($descendants));
 
                         [$contextsql, $cparams] = $DB->get_in_or_equal(
@@ -458,6 +472,12 @@ class user_role extends condition_base {
         global $DB;
 
         if ($this->get_config_data()) {
+            /* get_sql() has a branch per level and filters by context only inside them: any other
+               level would match the role held anywhere on the site. */
+            if (!in_array($this->get_contextlevel_value(), self::CONTEXT_LEVELS, true)) {
+                return true;
+            }
+
             // Check role exists.
             if (!$DB->get_record('role', ['id' => $this->get_roleid_value()])) {
                 return true;

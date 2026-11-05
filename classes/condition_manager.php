@@ -95,6 +95,24 @@ class condition_manager {
     }
 
     /**
+     * A condition description made safe for the conditions template, which prints it raw.
+     *
+     * Descriptions are HTML: the user profile interests condition shows its tags as badges. Every
+     * built-in condition escapes what it interpolates from stored config data and names;
+     * clean_text() is the one guard that also holds for a condition shipped by another plugin and for
+     * a description posted back with the rule form. Every producer of the template's description
+     * goes through here: {@see rule_manager::build_data_for_form()},
+     * {@see external\rule_conditions::get_conditions()}, {@see external\condition_form::submit()} and
+     * {@see rule_form::definition_after_data()}.
+     *
+     * @param string $description Description from get_config_description() or get_broken_description().
+     * @return string
+     */
+    public static function description_html(string $description): string {
+        return clean_text($description, FORMAT_HTML);
+    }
+
+    /**
      * Class names of the conditions a category-level user may use.
      *
      * Those that scope their referents (condition_base::supports_category_scope()) and that the
