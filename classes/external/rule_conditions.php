@@ -22,6 +22,7 @@ use core_external\external_value;
 use core_external\external_multiple_structure;
 use core_external\external_single_structure;
 use tool_dynamic_cohorts\condition_base;
+use tool_dynamic_cohorts\condition_manager;
 use tool_dynamic_cohorts\local\rule_access;
 use tool_dynamic_cohorts\rule;
 use invalid_parameter_exception;
@@ -70,7 +71,7 @@ class rule_conditions extends external_api {
 
             if (!$instance) {
                 $name = $condition->get('classname');
-                $description = $condition->get('configdata');
+                $description = s($condition->get('configdata'));
                 $configdata = $condition->get('configdata');
                 $broken = false;
             } else {
@@ -85,7 +86,7 @@ class rule_conditions extends external_api {
                 'sortorder' => (int)$condition->get('sortorder'),
                 'classname' => $condition->get('classname'),
                 'configdata' => $configdata,
-                'description' => $description,
+                'description' => condition_manager::description_html($description),
                 'name' => $name,
                 'broken' => $broken,
             ];

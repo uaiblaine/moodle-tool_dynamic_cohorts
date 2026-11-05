@@ -114,8 +114,12 @@ trait fields_trait {
      */
     protected function get_field_value_text(): ?string {
         $fieldname = $this->get_field_name();
+        /* The description is HTML ({{{description}}}): the stored value is whatever the rule's author
+           typed or posted, so it is escaped here. Option labels already carry the escaped spelling,
+           because core's form templates print them raw too. */
         $fieldvalue = $this->get_field_value();
         $fieldinfo = $this->get_fields_info();
+        $fieldvaluetext = is_scalar($fieldvalue) ? s((string) $fieldvalue) : '';
 
         if (!empty($fieldname) && !empty($fieldinfo[$fieldname])) {
             switch ($fieldinfo[$fieldname]->datatype) {
@@ -127,13 +131,16 @@ trait fields_trait {
                        options, cohort contexts), so an option removed after the condition
                        was saved made this an undefined array key: a PHP warning, which
                        PHPUnit fails the build over, and an empty description on screen. */
-                    $fieldvalue = $fieldinfo[$fieldname]->param1[$fieldvalue] ?? $fieldvalue;
+                    if (is_scalar($fieldvalue)) {
+                        $fieldvaluetext = $fieldinfo[$fieldname]->param1[$fieldvalue] ?? $fieldvaluetext;
+                    }
                     break;
                 case self::FIELD_DATA_TYPE_DATE:
                 case self::FIELD_DATA_TYPE_DATETIME:
-                    $fieldvalue = userdate($fieldvalue);
+                    $fieldvaluetext = userdate((int) $fieldvalue);
             }
         }
+        $fieldvalue = $fieldvaluetext;
 
         $nullvalue = [self::TEXT_IS_EMPTY, self::TEXT_IS_NOT_EMPTY, self::DATE_IN_THE_PAST, self::DATE_IN_THE_FUTURE];
         if (in_array($this->get_operator_value(), $nullvalue)) {
@@ -273,11 +280,20 @@ trait fields_trait {
         $fields = $this->get_fields_info();
         if (empty($data[static::get_form_field()]) || !isset($fields[$data[static::get_form_field()]])) {
             $errors['fieldgroup'] = get_string('pleaseselectfield', 'tool_dynamic_cohorts');
+            return $errors;
         }
 
         $fieldvalue = $data[static::get_form_field()] . '_value';
         $operator = $data[static::get_form_field()] . '_operator';
-        $datatype = $fields[$data[static::get_form_field()]]->datatype ?? '';
+        $datatype = $fields[$data[static::get_form_field()]]->datatype;
+
+        /* The config data reaches the save as JSON the client wrote, not through this form's
+           elements, so the operator is checked against the list the form offers: an unknown one
+           builds no WHERE at all ({@see get_text_sql()}), which leaves the condition matching everyone. */
+        if (!array_key_exists((int) ($data[$operator] ?? -1), $this->get_operators_for_datatype($datatype))) {
+            $errors['fieldgroup'] = get_string('invalidfieldvalue', 'tool_dynamic_cohorts');
+            return $errors;
+        }
 
         if (empty($data[$fieldvalue])) {
             if ($datatype == 'text' && !in_array($data[$operator], [self::TEXT_IS_EMPTY, self::TEXT_IS_NOT_EMPTY])) {
@@ -286,6 +302,28 @@ trait fields_trait {
         }
 
         return $errors;
+    }
+
+    /**
+     * The operators the form offers for a field data type ({@see add_text_field()} and its siblings).
+     *
+     * @param string $datatype Field data type.
+     * @return array Labels keyed by operator.
+     */
+    protected function get_operators_for_datatype(string $datatype): array {
+        switch ($datatype) {
+            case self::FIELD_DATA_TYPE_MENU:
+            case self::FIELD_DATA_TYPE_SELECT:
+            case self::FIELD_DATA_TYPE_AUTOCOMPLETE:
+                return $this->get_menu_operators();
+            case self::FIELD_DATA_TYPE_CHECKBOX:
+                return array_intersect_key($this->get_menu_operators(), [self::TEXT_IS_EQUAL_TO => true]);
+            case self::FIELD_DATA_TYPE_DATE:
+            case self::FIELD_DATA_TYPE_DATETIME:
+                return $this->get_date_operators();
+            default:
+                return $this->get_text_operators();
+        }
     }
 
     /**

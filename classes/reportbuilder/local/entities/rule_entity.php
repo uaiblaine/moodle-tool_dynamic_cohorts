@@ -95,8 +95,9 @@ class rule_entity extends base {
             ->add_field("{$alias}.name")
             ->add_field("{$alias}.id")
             ->set_is_sortable(true)
-            ->add_callback(function ($value, $row) {
-                return $value;
+            ->add_callback(static function ($value): string {
+                // The report prints a column's value as HTML.
+                return format_string((string) $value, true, ['context' => \core\context\system::instance()]);
             });
 
         $columns[] = (new column(
@@ -107,7 +108,10 @@ class rule_entity extends base {
             ->add_joins($this->get_joins())
             ->set_type(column::TYPE_TEXT)
             ->add_field("{$alias}.description")
-            ->set_is_sortable(false);
+            ->set_is_sortable(false)
+            ->add_callback(static function ($value): string {
+                return format_string((string) $value, true, ['context' => \core\context\system::instance()]);
+            });
 
         $columns[] = (new column(
             'bulkprocessing',
