@@ -493,7 +493,8 @@ abstract class condition_base {
      * @return string
      */
     public function get_broken_description(): string {
-        return $this->get_record()->get('configdata');
+        // Descriptions are HTML ({@see condition_manager::description_html()}); the config data is not.
+        return s($this->get_record()->get('configdata'));
     }
 
     /**
