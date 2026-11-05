@@ -61,15 +61,30 @@ class matching_users extends system_report {
         $this->add_join($sql->get_join());
 
         $this->add_column_from_entity('user:fullnamewithlink');
-        $this->add_column_from_entity('user:username');
-        $this->add_column_from_entity('user:email');
-        $this->add_column_from_entity('user:idnumber');
+        $this->add_filter_from_entity('user:fullname');
+
+        /* A rule may match any user of the site, so the columns, filters and download follow what core
+           shows this viewer in the rule's context: in a course category only the identity fields of
+           that context (showuseridentity, moodle/site:viewuseridentity, profile field visibility). The
+           system level keeps its fixed columns, as before category rules existed: reaching them takes
+           both capabilities in the system context, and the plugin's capability is RISK_PERSONAL. */
+        $context = rule_access::context_for($rule);
+        if ($context->contextlevel == CONTEXT_SYSTEM) {
+            $this->add_column_from_entity('user:username');
+            $this->add_column_from_entity('user:email');
+            $this->add_column_from_entity('user:idnumber');
+            $this->add_filter_from_entity('user:email');
+            $this->add_filter_from_entity('user:idnumber');
+        } else {
+            foreach (array_filter($userentity->get_identity_columns($context)) as $column) {
+                $this->add_column($column);
+            }
+            foreach (array_filter($userentity->get_identity_filters($context)) as $filter) {
+                $this->add_filter($filter);
+            }
+        }
 
         $this->set_initial_sort_column('user:fullnamewithlink', SORT_ASC);
-
-        $this->add_filter_from_entity('user:fullname');
-        $this->add_filter_from_entity('user:email');
-        $this->add_filter_from_entity('user:idnumber');
 
         $this->set_downloadable(true);
     }

@@ -169,14 +169,15 @@ class rule_form extends dynamic_form {
         $options = ['' => get_string('choosedots')];
 
         // Retrieve only available cohorts to display in the select.
+        // ESCAPED spelling: core's autocomplete option template prints the label raw.
         foreach (cohort_manager::get_cohorts(true, $this->get_context_for_dynamic_submission()) as $cohort) {
-            $options[$cohort->id] = $cohort->name;
+            $options[$cohort->id] = cohort_manager::get_formatted_name($cohort);
         }
 
         // Add the currently selected cohort as it won't be in the list.
         $cohort = $this->get_default_cohort();
         if (!empty($cohort)) {
-            $options[$cohort->id] = $cohort->name;
+            $options[$cohort->id] = cohort_manager::get_formatted_name($cohort);
         }
 
         return $options;
@@ -289,9 +290,15 @@ class rule_form extends dynamic_form {
         $PAGE->requires->js_call_amd('tool_dynamic_cohorts/condition_form', 'init');
 
         $mform = $this->_form;
-        $conditionjson = $mform->getElementValue('conditionjson');
+        // On a redisplay the JSON, descriptions included, is what the browser posted.
+        $conditions = json_decode((string) $mform->getElementValue('conditionjson'), true);
+        $conditions = array_map(function ($condition): array {
+            $condition = (array) $condition;
+            $condition['description'] = condition_manager::description_html((string) ($condition['description'] ?? ''));
+            return $condition;
+        }, is_array($conditions) ? $conditions : []);
         $conditions = $OUTPUT->render_from_template('tool_dynamic_cohorts/conditions', [
-            'conditions' => json_decode($conditionjson, true),
+            'conditions' => $conditions,
         ]);
 
         $mform->insertElementBefore(
