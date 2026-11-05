@@ -75,6 +75,21 @@ class cohort_manager {
     }
 
     /**
+     * A cohort's name, filtered in its own context, in the ESCAPED spelling.
+     *
+     * Core's cohort web service stores the name as PARAM_RAW, so a user holding moodle/cohort:manage
+     * in a category can give a cohort a name carrying markup, and every place this plugin shows it
+     * (form option labels, condition descriptions) prints it raw.
+     *
+     * @param \stdClass $cohort A {cohort} record.
+     * @return string
+     */
+    public static function get_formatted_name(\stdClass $cohort): string {
+        $context = \core\context::instance_by_id((int) $cohort->contextid, IGNORE_MISSING) ?: \core\context\system::instance();
+        return format_string($cohort->name, true, ['context' => $context]);
+    }
+
+    /**
      * Set cohort to be managed by tool_dynamic_cohorts.
      *
      * @param int $cohortid Cohort ID.

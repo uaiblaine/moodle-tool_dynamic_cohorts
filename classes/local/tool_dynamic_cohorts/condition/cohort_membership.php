@@ -81,7 +81,8 @@ class cohort_membership extends condition_base {
             // A category-level user picks among the cohorts usable from the category only.
             $cohorts = $this->scope === null ? cohort_manager::get_cohorts() : $this->get_scoped_cohorts();
             foreach ($cohorts as $cohort) {
-                $this->allcohorts[$cohort->id] = $cohort->name;
+                // ESCAPED spelling: the autocomplete's option template and {{{description}}} print it raw.
+                $this->allcohorts[$cohort->id] = cohort_manager::get_formatted_name($cohort);
             }
         }
 
