@@ -104,7 +104,18 @@ class observer {
                 continue;
             }
             $instance = condition_base::get_instance(0, $record->to_record());
-            if (!$instance || $instance->is_relevant_event($event)) {
+            if (!$instance) {
+                return true;
+            }
+            /* A condition that throws counts as relevant too: processing then reports the failure
+               and marks the rule broken ({@see rule_manager::get_matching_users()}). Left to escape, a
+               \TypeError would abort the request that fired the event, since core catches only
+               \Exception from observers. */
+            try {
+                if ($instance->is_relevant_event($event)) {
+                    return true;
+                }
+            } catch (\Throwable $exception) {
                 return true;
             }
         }

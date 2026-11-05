@@ -7,6 +7,42 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This is a fork of [catalyst/moodle-tool_dynamic_cohorts](https://github.com/catalyst/moodle-tool_dynamic_cohorts).
 Entries below cover the fork only; upstream history lives in that repository.
 
+## [Unreleased]
+
+### Security
+
+- Condition descriptions no longer carry markup a rule's author stored. The conditions table prints
+  a description as HTML, and four producers interpolated stored values raw: a profile or cohort
+  field value, the last-login and user-created period type, an unknown enrolment method, and the
+  stored JSON of a broken condition or of one whose class is gone. A category manager could store
+  a script that ran in the browser of an administrator opening the rule. Each value is escaped
+  where it is interpolated, and every description is cleaned (`condition_manager::description_html()`,
+  `clean_text()`) before the template, which also covers conditions of other plugins and the
+  descriptions the rule form posts back.
+- Cohort names, and custom profile field names and menu options, are formatted before they reach
+  a description or a form option list (core's option templates print labels raw, and core's cohort
+  web service stores a name as `PARAM_RAW`). Rule names and descriptions are formatted in the rules
+  report.
+- The matching-users report of a rule in a course category shows, filters and downloads only the
+  identity fields core shows the viewer in that category (`showuseridentity`,
+  `moodle/site:viewuseridentity`, profile field visibility); it showed username, email and
+  idnumber of every matching user of the site. The system level keeps its columns. Stage S4 of
+  `docs/category-context/PLAN.md` on `main`.
+
+### Fixed
+
+- Conditions submitted with the rule form are checked against what their form offers: the
+  operator of a profile or cohort field (an unknown one built no filter, so the condition matched
+  everyone), the last-login and user-created operator and period type, and the user role's context
+  level. A stored role condition with any other context level is broken instead of matching the
+  role held anywhere on the site.
+- A `\TypeError` from a condition's SQL while listing or counting a rule's users breaks the rule
+  and logs `matching_failed`, as an exception already did; one from `is_relevant_event()` counts
+  the event as relevant. Neither escapes into the request that fired an event (core catches only
+  `\Exception` from observers).
+- A field condition submitted without a field is refused without reading the missing keys.
+- The user role condition's descendant-context query uses `sql_like()`.
+
 ## [v5.2-r4] - 2026-10-28
 
 Fourth release of this fork for Moodle 5.2 ($plugin->version = 2026042009). Two new conditions,

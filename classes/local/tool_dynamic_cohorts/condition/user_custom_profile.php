@@ -106,12 +106,19 @@ class user_custom_profile extends user_profile {
                 (array)$customfield->field,
                 ['id' => 1, 'shortname' => 1, 'name' => 1, 'datatype' => 1, 'param1' => 1]
             );
+            /* Names and option labels in the ESCAPED spelling: both the form's option templates and
+               the {{{description}}} sink print them raw. The option keys stay the stored values. */
+            $formatoptions = ['context' => \core\context\system::instance()];
+            $field->name = format_string($field->name, true, $formatoptions);
 
             switch ($field->datatype) {
                 case self::FIELD_DATA_TYPE_MENU:
                 case self::FIELD_DATA_TYPE_AUTOCOMPLETE:
-                    $options = explode("\n", (string) $field->param1);
-                    $field->param1 = array_combine($options, $options);
+                    $values = explode("\n", (string) $field->param1);
+                    $field->param1 = array_combine(
+                        $values,
+                        array_map(fn(string $value): string => format_string($value, true, $formatoptions), $values)
+                    );
                     break;
                 case self::FIELD_DATA_TYPE_TEXT:
                     $field->paramtype = PARAM_TEXT;

@@ -81,7 +81,7 @@ class rule_manager {
             if (!$instance) {
                 $broken = false;
                 $name = $condition->get('classname');
-                $description = $condition->get('configdata');
+                $description = s($condition->get('configdata'));
             } else {
                 $broken = $instance->is_broken();
                 $name = $instance->get_name();
@@ -89,7 +89,7 @@ class rule_manager {
             }
 
             $conditions[] = (array)$condition->to_record() +
-                ['description' => $description] +
+                ['description' => condition_manager::description_html($description)] +
                 ['name' => $name] +
                 ['broken' => $broken];
         }
@@ -241,9 +241,12 @@ class rule_manager {
 
         $sql = "SELECT DISTINCT u.id FROM {user} u";
 
+        /* \Throwable, not \Exception: every condition's get_sql() runs here, also on the observer's
+           path, and core catches only \Exception from an observer (lib/classes/event/manager.php), so
+           a TypeError would abort whatever the user was doing when the event fired. */
         try {
             $sqldata = condition_manager::build_sql_data($conditions, $rule->get('operator'), $userid);
-        } catch (\Exception $exception) {
+        } catch (\Throwable $exception) {
             self::trigger_matching_failed_event($rule, $exception->getMessage());
             $rule->mark_broken();
             $matchinguserscache->set($rule->get('id'), 0);
@@ -294,7 +297,7 @@ class rule_manager {
 
         try {
             $sqldata = condition_manager::build_sql_data($conditions, $rule->get('operator'));
-        } catch (\Exception $exception) {
+        } catch (\Throwable $exception) {
             self::trigger_matching_failed_event($rule, $exception->getMessage());
             $rule->mark_broken();
 

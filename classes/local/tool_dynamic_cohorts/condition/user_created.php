@@ -72,7 +72,7 @@ class user_created extends user_last_login {
                    ]);
                 break;
             case self::OPERATOR_IN_LAST:
-                $description = get_string('usercreatedin', 'tool_dynamic_cohorts', $this->get_period());
+                $description = get_string('usercreatedin', 'tool_dynamic_cohorts', s($this->get_period()));
                 break;
         }
 
