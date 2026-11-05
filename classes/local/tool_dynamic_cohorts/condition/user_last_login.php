@@ -137,8 +137,20 @@ class user_last_login extends condition_base {
     public function config_form_validate(array $data): array {
         $errors = [];
 
-        if ($data['operator'] == self::OPERATOR_IN_LAST && empty($data['period_value'])) {
-            $errors['period'] = get_string('required');
+        /* Checked here because the save takes the config data from the JSON the client wrote, not
+           from this form's select elements: an unknown period type reached the description raw. */
+        if (!array_key_exists((int) ($data['operator'] ?? -1), $this->get_operators())) {
+            $errors['operator'] = get_string('required');
+            return $errors;
+        }
+
+        if ($data['operator'] == self::OPERATOR_IN_LAST) {
+            $periodtype = $data['period_type'] ?? null;
+            if (empty($data['period_value'])) {
+                $errors['period'] = get_string('required');
+            } else if (!is_string($periodtype) || !array_key_exists($periodtype, $this->get_period_options())) {
+                $errors['period'] = get_string('required');
+            }
         }
 
         return $errors;
@@ -227,7 +239,7 @@ class user_last_login extends condition_base {
                    ]);
                 break;
             case self::OPERATOR_IN_LAST:
-                $description = get_string('inlastloggedin', 'tool_dynamic_cohorts', $this->get_period());
+                $description = get_string('inlastloggedin', 'tool_dynamic_cohorts', s($this->get_period()));
                 break;
         }
 

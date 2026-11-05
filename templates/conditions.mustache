@@ -30,6 +30,8 @@
 
     Context variables required for this template:
     * conditions - A list of conditions, each with sortorder, name, description and broken.
+      The description is HTML, printed raw: every producer passes it through
+      condition_manager::description_html() first.
     * hidecontrols - True if the edit and delete controls should be hidden.
 
     Example context (json):

@@ -205,7 +205,8 @@ final class cohort_membership_test extends \advanced_testcase {
         ]);
 
         $this->assertSame(
-            '{"cohort_membership_operator":1,"cohort_membership_value":["' . $cohort2->id . '"]}',
+            // Escaped: descriptions are HTML.
+            s('{"cohort_membership_operator":1,"cohort_membership_value":["' . $cohort2->id . '"]}'),
             $condition->get_broken_description()
         );
 
