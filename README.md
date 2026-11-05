@@ -206,9 +206,11 @@ its cohort lives in. On the site page, a Context filter narrows the list to one 
 A site administrator, or anyone holding both capabilities in the system context, is not limited by
 any of this and keeps managing every rule from site administration.
 
-**Note:** the matching-users list still shows each matched user's username, email address and ID
-number, as it does for administrators. Grant the role only to people who may see those details for
-the users your rules select.
+**Note:** a rule may match any user of the site. For a rule in a category, the matching-users list
+shows each matched user's full name and only the identity fields core shows that viewer in the
+category (_Show user identity_, `moodle/site:viewuseridentity`, profile field visibility); its
+filters and download follow the same columns. At the system level it shows username, email address
+and ID number.
 
 ## Rule processing options
 Rules are processed regularly by cron; by default cron will add each user to the specified cohort one by one. For large sets of users, this can take a long time and potentially block other cron tasks.
@@ -299,9 +301,10 @@ Task processing is orchestrated by a simple mechanism:
 and delete rules, and view the list of users a rule matches. Each rule is decided in the context of
 the cohort it fills, and it also needs `moodle/cohort:assign` there (see
 [Managing rules in a course category](#managing-rules-in-a-course-category)). It carries
-`RISK_PERSONAL`: the matching users report lists every matched user's username, email address and
-ID number, and can be downloaded. No role holds it by default, so it is admin-only until granted
-explicitly.
+`RISK_PERSONAL`: the matching users report lists the users a rule matches anywhere on the site, and
+can be downloaded. At the system level it shows their username, email address and ID number; in a
+category, only the identity fields core shows the viewer there. No role holds it by default, so it
+is admin-only until granted explicitly.
 
 # Privacy
 
