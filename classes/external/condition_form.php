@@ -23,6 +23,7 @@ use core_external\external_single_structure;
 use core_external\external_value;
 use tool_dynamic_cohorts\condition_base;
 use tool_dynamic_cohorts\condition_form as form;
+use tool_dynamic_cohorts\condition_manager;
 use tool_dynamic_cohorts\local\rule_access;
 
 /**
@@ -94,7 +95,9 @@ class condition_form extends external_api {
             'sortorder' => (int)$formdata->sortorder,
             'classname' => $classname,
             'configdata' => json_encode($condition->get_config_data()),
-            'description' => $condition->is_broken() ? $condition->get_broken_description() : $condition->get_config_description(),
+            'description' => condition_manager::description_html(
+                $condition->is_broken() ? $condition->get_broken_description() : $condition->get_config_description()
+            ),
             'name' => $condition->get_name(),
         ];
     }

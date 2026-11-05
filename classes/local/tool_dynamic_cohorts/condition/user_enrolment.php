@@ -258,7 +258,7 @@ class user_enrolment extends condition_base {
 
         // Missing enrolment method.
         if (!array_key_exists($this->get_enrolment_method_value(), $this->get_enrolment_methods())) {
-            return get_string('missingenrolmentmethod', 'tool_dynamic_cohorts', $this->get_enrolment_method_value());
+            return get_string('missingenrolmentmethod', 'tool_dynamic_cohorts', s($this->get_enrolment_method_value()));
         }
 
         return parent::get_broken_description();

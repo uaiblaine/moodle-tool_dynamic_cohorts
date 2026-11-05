@@ -51,6 +51,12 @@ final class condition_manager_test extends \advanced_testcase {
     /** @var string Condition class used where a real, cheaply configured condition is needed. */
     private const LAST_LOGIN = 'tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition\user_last_login';
 
+    /** @var string The user profile condition class. */
+    private const NS_PROFILE = 'tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition\user_profile';
+
+    /** @var string The user role condition class. */
+    private const NS_ROLE = 'tool_dynamic_cohorts\local\tool_dynamic_cohorts\condition\user_role';
+
     /**
      * Build one entry of the rule form's conditionjson for a last-login condition.
      *
@@ -272,10 +278,31 @@ final class condition_manager_test extends \advanced_testcase {
             'unknown class' => ['tool_dynamic_cohorts\not_a_condition', '{"operator":1}', 'Unknown condition'],
             'config data is not an object' => [$lastlogin, '"x"', 'Invalid config data'],
             'config data fails the form validation' => [$lastlogin, '{"operator":5}', 'Invalid config data'],
-            'a getter raises a TypeError' => [$lastlogin, '{"operator":"abc"}', 'Invalid config data'],
-            'only get_sql raises a TypeError' => [
+            'a getter raises a TypeError' => [
                 $lastlogin,
-                '{"operator":5,"period_value":1,"period_type":["day"]}',
+                '{"operator":5,"period_value":"abc","period_type":"days"}',
+                'Invalid config data',
+            ],
+            // Validation and is_broken() never read includechildren; get_sql() and the description do.
+            'only get_sql raises a TypeError' => [
+                self::NS_ROLE,
+                '{"operator":0,"roleid":1,"contextlevel":40,"categoryid":1,"includechildren":"abc"}',
+                'Invalid config data',
+            ],
+            'an operator the form does not offer' => [$lastlogin, '{"operator":99}', 'Invalid config data'],
+            'a period type the form does not offer' => [
+                $lastlogin,
+                '{"operator":5,"period_value":1,"period_type":"<b>weeks</b>"}',
+                'Invalid config data',
+            ],
+            'a field operator the form does not offer' => [
+                self::NS_PROFILE,
+                '{"profilefield":"firstname","firstname_operator":99,"firstname_value":"x"}',
+                'Invalid config data',
+            ],
+            'a role context level get_sql() has no branch for' => [
+                self::NS_ROLE,
+                '{"operator":0,"roleid":1,"contextlevel":70}',
                 'Invalid config data',
             ],
         ];

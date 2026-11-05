@@ -1,0 +1,2 @@
+# DW: The rule form's cohort options carry the name raw.
+s{foreach \(cohort_manager\:\:get_cohorts\(true\, \$this\-\>get_context_for_dynamic_submission\(\)\) as \$cohort\) \{\n            \$options\[\$cohort\-\>id\] \= cohort_manager\:\:get_formatted_name\(\$cohort\)\;}{foreach (cohort_manager::get_cohorts(true, \$this->get_context_for_dynamic_submission()) as \$cohort) \{\n            \$options[\$cohort->id] = \$cohort->name;}s;
