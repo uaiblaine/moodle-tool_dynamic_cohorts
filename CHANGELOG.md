@@ -7,7 +7,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This is a fork of [catalyst/moodle-tool_dynamic_cohorts](https://github.com/catalyst/moodle-tool_dynamic_cohorts).
 Entries below cover the fork only; upstream history lives in that repository.
 
-## [Unreleased]
+## [v5.3-r5] - 2026-11-04
+
+Fifth release of this fork for Moodle 5.3 ($plugin->version = 2026100510). Security fixes from an external
+report: condition descriptions can no longer carry markup a category manager stored, the
+matching-users report of a category rule shows only the identity fields core shows there, and
+malformed conditions fail closed. The version bump makes the upgrade purge the caches.
 
 ### Security
 
