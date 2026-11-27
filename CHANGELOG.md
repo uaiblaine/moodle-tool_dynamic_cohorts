@@ -7,6 +7,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This is a fork of [catalyst/moodle-tool_dynamic_cohorts](https://github.com/catalyst/moodle-tool_dynamic_cohorts).
 Entries below cover the fork only; upstream history lives in that repository.
 
+## [Unreleased]
+
+Synced with upstream `MOODLE_404_STABLE` at 52885e9 (catalyst#192, catalyst#193, upstream
+`v2026112600`). Nothing in the tree changes: every upstream hunk was already here or is
+superseded on this branch.
+
+- catalyst#193 (Moodle 5.3 support) converges on fixes this fork made on 2026-10-18.
+  `cohort_field_test` already sets an admin user before building the category list.
+  `user_role_test` stays without one on purpose: upstream sets an admin user because its
+  category description still calls the capability-aware `core_course_category::get()`, which
+  throws `cannotviewcategory` on 5.3; this fork reads the name from the table, and the test run
+  without a user is what holds that (with upstream's lookup restored it errors). The
+  `method_exists()` helper in `observer_test` serves upstream's single multi-version branch;
+  each branch here calls the API of its own Moodle version.
+- catalyst#192 (Catalyst workflow releasing to the plugins directory) is not taken: this fork
+  runs the MAH workflow and publishes its own GitHub releases, never the moodle.org entry.
+- Upstream's open pull requests are unchanged since the 2026-10-18 review.
+
 ## [v5.3-r5] - 2026-11-04
 
 Fifth release of this fork for Moodle 5.3 ($plugin->version = 2026100510). Security fixes from an external
